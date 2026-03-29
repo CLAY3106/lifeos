@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, assignments, jobs, workouts, expenses, dashboard
+from app.routers import auth, assignments, jobs, workouts, expenses, dashboard, ai
 
 app = FastAPI(title="LifeOS API")
 
@@ -18,6 +18,7 @@ app.include_router(jobs.router)
 app.include_router(workouts.router)
 app.include_router(expenses.router)
 app.include_router(dashboard.router)
+app.include_router(ai.router)
 
 @app.get("/health")
 def health():

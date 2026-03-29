@@ -9,6 +9,10 @@ export default function DashboardPage() {
     refreshInterval: 30000
   })
 
+  const { data: aiData, mutate: refreshAI } = useSWR("/ai/briefing", 
+  () => api.post("/ai/briefing").then(r => r.data)
+  )
+
   if (isLoading) return <div className="text-gray-400">Loading...</div>
   if (!data) return <div className="text-gray-400">No data</div>
 
@@ -19,6 +23,26 @@ export default function DashboardPage() {
     <div className="max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold mb-2">Good morning, {data.user.name} 👋</h1>
       <p className="text-gray-500 mb-8">Here's your day at a glance.</p>
+
+      {/* AI Briefing */}
+<div className="bg-black text-white rounded-lg p-5 mb-8">
+  <div className="flex justify-between items-start">
+    <h2 className="text-sm font-medium text-gray-400 mb-2">AI Briefing</h2>
+    <button
+      onClick={() => {
+        api.post("/ai/refresh").then(() => refreshAI())
+      }}
+      className="text-xs text-gray-400 hover:text-white"
+    >
+      Refresh
+    </button>
+  </div>
+  {aiData ? (
+    <p className="text-sm leading-relaxed">{aiData.content}</p>
+  ) : (
+    <p className="text-sm text-gray-500">Generating your briefing...</p>
+  )}
+</div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-4 mb-8">

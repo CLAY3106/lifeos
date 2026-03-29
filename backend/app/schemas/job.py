@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from uuid import UUID
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 from app.models.job import JobStatus
 
@@ -26,7 +26,7 @@ class JobResponse(BaseModel):
     status: JobStatus
     followup_date: Optional[date] = None
     notes: Optional[str] = None
-    created_at: date
+    created_at: datetime
 
     class Config:
         from_attributes = True
