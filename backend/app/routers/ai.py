@@ -5,10 +5,12 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.models.ai_insight import AIInsight, InsightType
 from app.services.context_builder import build_context
+from app.logger import logger
 from datetime import datetime, timezone, timedelta
 import anthropic
 import uuid
 import os
+import time
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -41,6 +43,7 @@ def get_cached_insight(db: Session, user_id, insight_type: InsightType):
 
 def generate_insight(db: Session, user: User, insight_type: InsightType, prompt: str) -> AIInsight:
     context = build_context(db, user)
+    start_time = time.time()
 
     message = client.messages.create(
         model="claude-haiku-4-5-20251001",
@@ -51,6 +54,22 @@ def generate_insight(db: Session, user: User, insight_type: InsightType, prompt:
                 "content": f"{prompt}\n\nContext:\n{context}"
             }
         ]
+    )
+
+    latency_ms = round((time.time() - start_time) * 1000)
+    input_tokens = message.usage.input_tokens
+    output_tokens = message.usage.output_tokens
+    estimated_cost = round((input_tokens * 0.00000025) + (output_tokens * 0.00000125), 6)
+
+    logger.info(
+        "ai_call",
+        user_id=str(user.id),
+        insight_type=insight_type.value,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        estimated_cost_usd=estimated_cost,
+        latency_ms=latency_ms,
+        cached=False
     )
 
     content = message.content[0].text
@@ -74,6 +93,7 @@ def get_briefing(
 ):
     cached = get_cached_insight(db, current_user.id, InsightType.daily)
     if cached:
+        logger.info("ai_call", user_id=str(current_user.id), cached=True)
         return {"content": cached.content, "cached": True, "generated_at": cached.generated_at}
 
     insight = generate_insight(db, current_user, InsightType.daily, DAILY_PROMPT)
@@ -86,6 +106,7 @@ def get_weekly(
 ):
     cached = get_cached_insight(db, current_user.id, InsightType.weekly)
     if cached:
+        logger.info("ai_call", user_id=str(current_user.id), cached=True)
         return {"content": cached.content, "cached": True, "generated_at": cached.generated_at}
 
     insight = generate_insight(db, current_user, InsightType.weekly, WEEKLY_PROMPT)
