@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
@@ -6,6 +6,8 @@ from app.models.user import User
 from app.models.ai_insight import AIInsight, InsightType
 from app.services.context_builder import build_context
 from app.logger import logger
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from datetime import datetime, timezone, timedelta
 import anthropic
 import uuid
@@ -13,6 +15,7 @@ import os
 import time
 
 router = APIRouter(prefix="/ai", tags=["ai"])
+limiter = Limiter(key_func=get_remote_address)
 
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
@@ -87,7 +90,9 @@ def generate_insight(db: Session, user: User, insight_type: InsightType, prompt:
     return insight
 
 @router.post("/briefing")
+@limiter.limit("10/day")
 def get_briefing(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -100,7 +105,9 @@ def get_briefing(
     return {"content": insight.content, "cached": False, "generated_at": insight.generated_at}
 
 @router.post("/weekly")
+@limiter.limit("5/day")
 def get_weekly(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -113,7 +120,9 @@ def get_weekly(
     return {"content": insight.content, "cached": False, "generated_at": insight.generated_at}
 
 @router.post("/refresh")
+@limiter.limit("10/day")
 def refresh_briefing(
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
