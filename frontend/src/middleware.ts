@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
-const PUBLIC_PATHS = ["/auth/login", "/auth/register"]
+const PUBLIC_PATHS = ["/auth/login", "/auth/register", "/api"]
 
 export function middleware(request: NextRequest) {
   const token = request.cookies.get("access_token")
@@ -12,7 +12,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/auth/login", request.url))
   }
 
-  if (token && isPublicPath) {
+  if (token && isPublicPath && !pathname.startsWith("/api")) {
     return NextResponse.redirect(new URL("/dashboard", request.url))
   }
 
