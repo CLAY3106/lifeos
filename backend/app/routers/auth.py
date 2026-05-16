@@ -29,7 +29,13 @@ def register(user_data: UserCreate, response: Response, db: Session = Depends(ge
 
     # create token and set cookie
     token = create_access_token({"sub": str(new_user.id)})
-    response.set_cookie(key="access_token", value=token, httponly=True)
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        samesite="none",
+        secure=True
+    )
 
     return new_user
 
