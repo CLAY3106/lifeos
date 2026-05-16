@@ -5,6 +5,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from app.routers import auth, assignments, jobs, workouts, expenses, dashboard, ai
+from app.database import check_db_connection
 from app.logger import logger
 import uuid
 import time
@@ -19,7 +20,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://lifeos-73limfqyh-son-les-projects-e2c594e3.vercel.app",  # ← replace with your actual Vercel URL
+        "https://lifeos-lac.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -65,3 +66,7 @@ app.include_router(ai.router)
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.get("/health/db")
+def health_db():
+    return check_db_connection()
