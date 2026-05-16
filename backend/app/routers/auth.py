@@ -46,7 +46,13 @@ def login(credentials: LoginRequest, response: Response, db: Session = Depends(g
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
     token = create_access_token({"sub": str(user.id)})
-    response.set_cookie(key="access_token", value=token, httponly=True)
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        samesite="none",
+        secure=True
+    )
     
     return {"message": "Login successful", "user": UserResponse.model_validate(user)}
 
