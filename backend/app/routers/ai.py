@@ -44,10 +44,12 @@ def get_cached_insight(db: Session, user_id, insight_type: InsightType):
         AIInsight.generated_at >= six_hours_ago
     ).first()
 
+# generate insight of the user which is stored in the database, then store the insight into the database
 def generate_insight(db: Session, user: User, insight_type: InsightType, prompt: str) -> AIInsight:
     context = build_context(db, user)
     start_time = time.time()
 
+    # create messages for models with prompts to generate insight
     message = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=300,
@@ -59,11 +61,16 @@ def generate_insight(db: Session, user: User, insight_type: InsightType, prompt:
         ]
     )
 
+    # calculate latency
     latency_ms = round((time.time() - start_time) * 1000)
+    # get input tokens
     input_tokens = message.usage.input_tokens
+    # get output tokens
     output_tokens = message.usage.output_tokens
+    # estimate and round the cost for one insight generation
     estimated_cost = round((input_tokens * 0.00000025) + (output_tokens * 0.00000125), 6)
 
+    # log each insight generation
     logger.info(
         "ai_call",
         user_id=str(user.id),
@@ -77,6 +84,7 @@ def generate_insight(db: Session, user: User, insight_type: InsightType, prompt:
 
     content = message.content[0].text
 
+    # create insight information including id, user id, type, content, and generation time
     insight = AIInsight(
         id=uuid.uuid4(),
         user_id=user.id,
@@ -84,6 +92,7 @@ def generate_insight(db: Session, user: User, insight_type: InsightType, prompt:
         content=content,
         generated_at=datetime.now(timezone.utc)
     )
+    # add the insight into the database
     db.add(insight)
     db.commit()
     db.refresh(insight)
