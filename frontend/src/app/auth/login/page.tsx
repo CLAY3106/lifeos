@@ -10,17 +10,21 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
 
-  async function handleLogin() {
+  async function handleLogin(creds?: { email: string; password: string }) {
     setLoading(true)
     setError("")
     try {
-      await api.post("/auth/login", { email, password })
+      await api.post("/auth/login", creds ?? { email, password })
       router.push("/dashboard")
     } catch (err: any) {
       setError("Invalid email or password")
     } finally {
       setLoading(false)
     }
+  }
+
+  function handleGuestLogin() {
+    handleLogin({ email: "demo@lifeos.app", password: "demo1234" })
   }
 
   return (
@@ -53,13 +57,33 @@ export default function LoginPage() {
             />
           </div>
           <button
-            onClick={handleLogin}
+            onClick={() => handleLogin()}
             disabled={loading}
             className="w-full bg-black text-white py-2 rounded text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
           >
             {loading ? "Signing in..." : "Sign in"}
           </button>
         </div>
+
+        <div className="relative my-4">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-200" />
+          </div>
+          <div className="relative flex justify-center text-xs">
+            <span className="bg-white px-2 text-gray-500">or</span>
+          </div>
+        </div>
+
+        <button
+          onClick={handleGuestLogin}
+          disabled={loading}
+          className="w-full border border-gray-300 py-2 rounded text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+        >
+          Try as guest
+        </button>
+        <p className="text-xs text-center text-gray-500 mt-2">
+          Explore the app with a pre-loaded demo account
+        </p>
 
         <p className="text-sm text-center mt-4">
           No account?{" "}
