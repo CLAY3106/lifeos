@@ -13,6 +13,11 @@ class ExpenseCategory(enum.Enum):
     fitness = "fitness"
     other = "other"
 
+class BudgetGroup(enum.Enum):
+    needs = "needs"
+    wants = "wants"
+    savings = "savings"
+
 class Expense(Base, TimestampMixin):
     __tablename__ = "expenses"
 
@@ -22,3 +27,4 @@ class Expense(Base, TimestampMixin):
     category = Column(Enum(ExpenseCategory), default=ExpenseCategory.other)
     note = Column(Text, nullable=True)
     spent_at = Column(DateTime, nullable=True)
+    group_override = Column(Enum(BudgetGroup), nullable=True)

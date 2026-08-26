@@ -27,6 +27,8 @@ from app.models.job import JobApplication
 from app.models.workout import Workout
 from app.models.expense import Expense
 from app.models.ai_insight import AIInsight
+from app.models.routine import Routine, RoutineItem
+from app.models.ai_usage_log import AIUsageLog
 
 target_metadata = Base.metadata
 

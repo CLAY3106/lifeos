@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Float, DateTime, Enum
+from sqlalchemy import Column, String, Float, DateTime, Enum, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import ForeignKey
 from app.database import Base
@@ -11,6 +11,10 @@ class AssignmentStatus(enum.Enum):
     done = "done"
     overdue = "overdue"
 
+class AssignmentImportance(enum.Enum):
+    low = "low"
+    high = "high"
+
 class Assignment(Base, TimestampMixin):
     __tablename__ = "assignments"
 
@@ -21,4 +25,6 @@ class Assignment(Base, TimestampMixin):
     due_date = Column(DateTime, nullable=False)
     estimated_hours = Column(Float, default=1.0)
     status = Column(Enum(AssignmentStatus), default=AssignmentStatus.pending)
+    importance = Column(Enum(AssignmentImportance), default=AssignmentImportance.low, nullable=False)
+    importance_set_manually = Column(Boolean, default=False, nullable=False)
     deleted_at = Column(DateTime, nullable=True)

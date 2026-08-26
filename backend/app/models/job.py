@@ -8,9 +8,11 @@ import enum
 
 class JobStatus(enum.Enum):
     applied = "applied"
-    interview = "interview"
+    oa = "oa"
+    interview_scheduled = "interview_scheduled"
     offer = "offer"
     rejected = "rejected"
+    dropped = "dropped"
 
 class JobApplication(Base, TimestampMixin):
     __tablename__ = "job_applications"
@@ -23,3 +25,7 @@ class JobApplication(Base, TimestampMixin):
     status = Column(Enum(JobStatus), default=JobStatus.applied)
     followup_date = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
+    location = Column(String, nullable=True)
+    job_description = Column(Text, nullable=True)
+    application_url = Column(String, nullable=True)
+    deadline = Column(Date, nullable=True)
