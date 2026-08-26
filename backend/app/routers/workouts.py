@@ -5,8 +5,8 @@ from app.models.workout import Workout
 from app.schemas.workout import WorkoutCreate, WorkoutResponse
 from app.dependencies import get_current_user
 from app.models.user import User
+from app.services import workouts_service
 from typing import List
-from datetime import datetime, timezone
 import uuid
 
 router = APIRouter(prefix="/workouts", tags=["workouts"])
@@ -17,18 +17,7 @@ def create_workout(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    workout = Workout(
-        id=uuid.uuid4(),
-        user_id=current_user.id,
-        type=data.type,
-        duration_mins=data.duration_mins,
-        notes=data.notes,
-        logged_at=data.logged_at or datetime.now(timezone.utc)
-    )
-    db.add(workout)
-    db.commit()
-    db.refresh(workout)
-    return workout
+    return workouts_service.create_workout(db, current_user, data)
 
 @router.get("", response_model=List[WorkoutResponse])
 def get_workouts(

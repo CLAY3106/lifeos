@@ -5,8 +5,8 @@ from app.models.expense import Expense
 from app.schemas.expense import ExpenseCreate, ExpenseResponse
 from app.dependencies import get_current_user
 from app.models.user import User
+from app.services import expenses_service
 from typing import List
-from datetime import datetime, timezone
 import uuid
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
@@ -17,18 +17,7 @@ def create_expense(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    expense = Expense(
-        id=uuid.uuid4(),
-        user_id=current_user.id,
-        amount=data.amount,
-        category=data.category,
-        note=data.note,
-        spent_at=data.spent_at or datetime.now(timezone.utc)
-    )
-    db.add(expense)
-    db.commit()
-    db.refresh(expense)
-    return expense
+    return expenses_service.create_expense(db, current_user, data)
 
 @router.get("", response_model=List[ExpenseResponse])
 def get_expenses(

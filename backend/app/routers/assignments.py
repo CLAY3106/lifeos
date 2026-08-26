@@ -5,6 +5,7 @@ from app.models.assignment import Assignment, AssignmentStatus
 from app.schemas.assignment import AssignmentCreate, AssignmentUpdate, AssignmentResponse
 from app.dependencies import get_current_user
 from app.models.user import User
+from app.services import assignments_service
 from typing import List
 from datetime import datetime, timezone
 import uuid
@@ -17,18 +18,7 @@ def create_assignment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    assignment = Assignment(
-        id=uuid.uuid4(),
-        user_id=current_user.id,
-        title=data.title,
-        course=data.course,
-        due_date=data.due_date,
-        estimated_hours=data.estimated_hours
-    )
-    db.add(assignment)
-    db.commit()
-    db.refresh(assignment)
-    return assignment
+    return assignments_service.create_assignment(db, current_user, data)
 
 @router.get("", response_model=List[AssignmentResponse])
 def get_assignments(
@@ -47,20 +37,10 @@ def update_assignment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    assignment = db.query(Assignment).filter(
-        Assignment.id == assignment_id,
-        Assignment.user_id == current_user.id,
-        Assignment.deleted_at == None
-    ).first()
-    if not assignment:
-        raise HTTPException(status_code=404, detail="Assignment not found")
-    
-    for field, value in data.model_dump(exclude_unset=True).items():
-        setattr(assignment, field, value)
-    
-    db.commit()
-    db.refresh(assignment)
-    return assignment
+    try:
+        return assignments_service.update_assignment(db, current_user, assignment_id, data)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 @router.delete("/{assignment_id}")
 def delete_assignment(
