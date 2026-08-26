@@ -37,7 +37,7 @@ export default function Sidebar() {
         </p>
         <nav className="flex flex-col">
           {links.map(link => {
-            const active = pathname === link.href
+            const active = pathname === link.href || pathname.startsWith(link.href + "/")
             const Icon = link.Icon
             return (
               <Link
