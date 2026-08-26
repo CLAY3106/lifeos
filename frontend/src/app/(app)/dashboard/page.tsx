@@ -146,7 +146,9 @@ export default function DashboardPage() {
                   )
                   const urgent = days <= 2
                   const dueLabel =
-                    days <= 0
+                    days < 0
+                      ? "Overdue"
+                      : days === 0
                       ? "Today"
                       : days === 1
                       ? "Tomorrow"
