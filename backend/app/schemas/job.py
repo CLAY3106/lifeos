@@ -9,6 +9,10 @@ class JobCreate(BaseModel):
     role: str
     applied_date: date
     notes: Optional[str] = None
+    location: Optional[str] = None
+    job_description: Optional[str] = None
+    application_url: Optional[str] = None
+    deadline: Optional[date] = None
 
 class JobUpdate(BaseModel):
     company: Optional[str] = None
@@ -16,6 +20,10 @@ class JobUpdate(BaseModel):
     status: Optional[JobStatus] = None
     followup_date: Optional[date] = None
     notes: Optional[str] = None
+    location: Optional[str] = None
+    job_description: Optional[str] = None
+    application_url: Optional[str] = None
+    deadline: Optional[date] = None
 
 class JobResponse(BaseModel):
     id: UUID
@@ -26,6 +34,10 @@ class JobResponse(BaseModel):
     status: JobStatus
     followup_date: Optional[date] = None
     notes: Optional[str] = None
+    location: Optional[str] = None
+    job_description: Optional[str] = None
+    application_url: Optional[str] = None
+    deadline: Optional[date] = None
     created_at: datetime
 
     class Config:
