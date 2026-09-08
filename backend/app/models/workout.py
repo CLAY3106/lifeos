@@ -10,6 +10,7 @@ class Workout(Base, TimestampMixin):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    routine_id = Column(UUID(as_uuid=True), ForeignKey("routines.id", ondelete="SET NULL"), nullable=True)
     type = Column(String, nullable=False)
     duration_mins = Column(Integer, nullable=False)
     notes = Column(String, nullable=True)

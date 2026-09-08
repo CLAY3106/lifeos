@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import case
 from app.database import get_db
 from app.models.assignment import Assignment, AssignmentStatus
 from app.schemas.assignment import AssignmentCreate, AssignmentUpdate, AssignmentResponse
@@ -25,10 +26,15 @@ def get_assignments(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    status_order = case(
+        (Assignment.status == AssignmentStatus.pending, 0),
+        (Assignment.status == AssignmentStatus.overdue, 1),
+        (Assignment.status == AssignmentStatus.done, 2),
+    )
     return db.query(Assignment).filter(
         Assignment.user_id == current_user.id,
         Assignment.deleted_at == None
-    ).order_by(Assignment.due_date).all()
+    ).order_by(status_order, Assignment.due_date).all()
 
 @router.patch("/{assignment_id}", response_model=AssignmentResponse)
 def update_assignment(
