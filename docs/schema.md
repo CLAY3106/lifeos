@@ -1,7 +1,7 @@
 # Database Schema
 
 ## Overview
-7 tables. All tables have `created_at` and `updated_at` timestamps.
+9 tables. All tables have `created_at` and `updated_at` timestamps.
 All tables except `users` have a `user_id` foreign key.
 All primary keys are UUIDs.
 
@@ -50,7 +50,7 @@ All primary keys are UUIDs.
 | company | VARCHAR | not null |
 | role | VARCHAR | not null |
 | applied_date | DATE | not null |
-| status | ENUM | applied, interview, offer, rejected |
+| status | ENUM | applied, oa, interview_scheduled, offer, rejected |
 | followup_date | DATE | auto-set to applied_date + 7 days |
 | notes | TEXT | |
 | created_at | TIMESTAMP | |
@@ -61,11 +61,34 @@ All primary keys are UUIDs.
 |---|---|---|
 | id | UUID | PK |
 | user_id | UUID | FK → users.id |
+| routine_id | UUID | FK → routines.id, nullable |
 | type | VARCHAR | e.g. gym, run, yoga |
 | duration_mins | INT | not null |
 | notes | TEXT | |
 | logged_at | TIMESTAMP | default now() |
 | created_at | TIMESTAMP | |
+
+### routines
+| Column | Type | Notes |
+|---|---|---|
+| id | UUID | PK |
+| user_id | UUID | FK → users.id |
+| name | VARCHAR | not null |
+| created_at | TIMESTAMP | |
+| updated_at | TIMESTAMP | |
+
+### routine_items
+| Column | Type | Notes |
+|---|---|---|
+| id | UUID | PK |
+| routine_id | UUID | FK → routines.id, cascade delete |
+| exercise_name | VARCHAR | not null |
+| sets | INT | nullable |
+| reps | INT | nullable |
+| duration_mins | INT | nullable |
+| day_of_week | VARCHAR | nullable |
+| created_at | TIMESTAMP | |
+| updated_at | TIMESTAMP | |
 
 ### expenses
 | Column | Type | Notes |
@@ -97,3 +120,5 @@ All primary keys are UUIDs.
 - **ai_insights cached** — generated once per day, served from DB on subsequent loads
 - **followup_date auto-set** — applied_date + 7 days, reduces friction when logging a job application
 - **user_settings separate table** — settings queried frequently by AI context builder, cleaner than extra columns on users
+- **routines ↔ workouts** — routine_id FK on workouts links a workout to its originating routine; nullable so ad-hoc workouts are supported
+- **routine_items** — exercises within a routine, supports sets/reps or duration, optional day_of_week for scheduling

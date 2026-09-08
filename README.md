@@ -2,7 +2,7 @@
 
 A personal command center for the overloaded college student. One dashboard that holds academic deadlines, job applications, fitness logs, and spending — with an AI layer that reasons across all four domains and warns you before things fall apart.
 
-Built in 1 week as a portfolio project to demonstrate full-stack, cloud, and AI engineering skills.
+Built as a portfolio project to demonstrate full-stack, cloud, and AI engineering skills — incorporating psychological design principles (Paradox of Choice, Endowed Progress, Zeigarnik Effect, Mental Accounting) to reduce decision fatigue and drive follow-through.
 
 > "I built LifeOS because I had a terrible trimester where everything fell apart at once — academics, job search, fitness, and money. I wanted one place that could see across all of those domains and warn me before things got bad."
 
@@ -18,13 +18,15 @@ Built in 1 week as a portfolio project to demonstrate full-stack, cloud, and AI 
 
 ## What it does
 
-| Module | Features |
-|---|---|
-| Academic planner | Assignments, due dates, estimated hours, urgency sorting, weekly load bar |
-| Job hunt tracker | Kanban pipeline — Applied → Interview → Offer. Auto follow-up reminders |
-| Workout log | Quick-add sessions, streak counter, activity log |
-| Finance tracker | Quick-add expenses, category breakdown, monthly budget pulse |
-| AI daily briefing | Cross-domain insight — flags overload, notices tensions, suggests one action |
+| Module | Features | Psychology |
+|---|---|---|
+| Academic planner | Assignments, due dates, estimated hours, urgency sorting, weekly load bar, completion progress ring | **Zeigarnik Effect** — open/pending items sort first, done items fade |
+| Job hunt tracker | Kanban pipeline — Applied → OA → Interview → Offer, pipeline progress circles | **Endowed Progress** — visual progress through hiring stages |
+| Workout log | Quick-add sessions, routines with exercises, streak counter, weekly volume chart, link workouts to routines | — |
+| Finance tracker | Envelope budgeting (50/30/20), transactions with search, location tracking, Chart.js breakdown | **Mental Accounting** — 50% needs / 30% wants / 20% savings |
+| AI daily briefing | Cross-domain insight — top 3 priorities (numbered cards), summary toggle, flags overload, notices tensions | **Paradox of Choice** — AI reduces 4 domains to 3 actionable items |
+| Activity log | Automatic tracking of workouts, expenses, assignments, job changes | — |
+| Profile | View account info, budget settings, weekly capacity | — |
 
 ---
 
@@ -32,11 +34,15 @@ Built in 1 week as a portfolio project to demonstrate full-stack, cloud, and AI 
 
 | Layer | Technology | Why |
 |---|---|---|
-| Frontend | Next.js 14, TypeScript, TailwindCSS | App Router, fast, Vercel-native |
-| Backend | FastAPI (Python) | Async, auto Swagger docs, Pydantic built-in |
+| Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4 | App Router, React 19 features, CSS-var-driven theme |
+| Data Fetching | SWR + Axios | Client-side revalidation, automatic cache |
+| Forms | React Hook Form + Zod v4 | Type-safe validation |
+| Charts | Chart.js + react-chartjs-2 | Doughnut, bar charts for finance and fitness |
+| Backend | FastAPI (Python 3.11) | Async, auto Swagger docs, Pydantic built-in |
 | Database | PostgreSQL 15 on Render | Reliable, free tier, same network as API |
-| Auth | JWT + bcrypt | Stateless, industry standard |
-| AI | Claude Haiku (Anthropic) | Cross-domain reasoning, cached daily |
+| ORM | SQLAlchemy + Alembic | Schema migrations, ORM queries |
+| Auth | JWT (cookies) + bcrypt | Stateless, httpOnly cookies, SameSite=none |
+| AI | Claude (Anthropic) | Cross-domain reasoning, cached in DB |
 | Frontend hosting | Vercel | Zero config, auto-deploys, global CDN |
 | Backend hosting | Render.com | Free HTTPS, Docker support, auto-deploys |
 | CI/CD | GitHub Actions | Auto deploy on push to main |
@@ -48,47 +54,82 @@ Built in 1 week as a portfolio project to demonstrate full-stack, cloud, and AI 
 
 ```
 lifeos/
-├── .github/workflows/deploy.yml   # CI/CD pipeline
-├── docker-compose.yml             # Local dev
-├── .env                           # Secrets (not committed)
-├── docs/adr/                      # Architecture Decision Records
-│   ├── ADR-001-fastapi.md
-│   ├── ADR-002-multi-user-auth.md
-│   ├── ADR-003-cache-ai-responses.md
-│   └── ADR-004-vercel-aws-eb.md
+├── .github/workflows/deploy.yml
+├── docker-compose.yml
+├── docs/
+│   ├── schema.md
+│   └── interview-prep-log.md
 ├── backend/
 │   ├── Dockerfile
-│   ├── entrypoint.sh              # Runs migrations then starts server
+│   ├── entrypoint.sh
 │   ├── requirements.txt
-│   ├── alembic/                   # Migration history
+│   ├── alembic/                    # 9 migrations
 │   └── app/
-│       ├── main.py                # Entry point, routers, CORS, middleware
-│       ├── database.py            # SQLAlchemy engine + session + Base
-│       ├── dependencies.py        # get_current_user JWT auth guard
-│       ├── logger.py              # structlog JSON logger
-│       ├── models/                # SQLAlchemy table definitions
-│       ├── schemas/               # Pydantic request/response validation
-│       ├── routers/               # HTTP endpoints per module
-│       └── services/              # Business logic
-│           ├── auth.py            # Password hashing, JWT
-│           └── context_builder.py # AI signal aggregation
+│       ├── main.py                 # Entry point, all routers, CORS, middleware
+│       ├── database.py
+│       ├── dependencies.py         # get_current_user JWT auth guard
+│       ├── seed.py                 # Demo account seeder (runs on container start)
+│       ├── models/
+│       │   ├── user.py
+│       │   ├── assignment.py
+│       │   ├── job.py
+│       │   ├── workout.py
+│       │   ├── expense.py          # + location, group_override
+│       │   ├── routine.py          # routines + routine_items
+│       │   ├── ai_insight.py
+│       │   ├── ai_usage_log.py
+│       │   └── activity_log.py
+│       ├── schemas/
+│       │   ├── user.py             # UserCreate, UserResponse, UserUpdate
+│       │   ├── assignment.py
+│       │   ├── job.py
+│       │   ├── workout.py
+│       │   ├── expense.py          # + location in response
+│       │   ├── routine.py
+│       │   └── activity_log.py
+│       ├── routers/
+│       │   ├── auth.py             # register, login, logout, me, patch me
+│       │   ├── assignments.py      # CASE sort: pending → overdue → done
+│       │   ├── jobs.py             # Kanban pipeline
+│       │   ├── workouts.py
+│       │   ├── expenses.py         # Returns {expenses, monthly_budget}
+│       │   ├── routines.py         # CRUD + nested items
+│       │   ├── dashboard.py
+│       │   ├── ai.py               # JSON-structured briefing
+│       │   └── activity.py         # GET /activity
+│       └── services/
+│           ├── auth.py
+│           ├── context_builder.py  # AI signal aggregation
+│           ├── assignments_service.py
+│           ├── expenses_service.py
+│           ├── workouts_service.py
+│           ├── jobs_service.py
+│           ├── routines_service.py
+│           └── activity_log_service.py
 └── frontend/
     └── src/
-        ├── middleware.ts          # Auth protection
+        ├── middleware.ts
         ├── app/
-        │   ├── (app)/             # Protected pages with sidebar
-        │   │   ├── dashboard/
-        │   │   ├── assignments/
-        │   │   ├── jobs/
-        │   │   ├── fitness/
-        │   │   └── finance/
-        │   └── auth/
-        │       ├── login/
-        │       └── register/
+        │   ├── globals.css         # Notion-style tokens, dark mode
+        │   ├── layout.tsx
+        │   └── (app)/
+        │       ├── layout.tsx      # Sidebar + Toaster
+        │       ├── dashboard/      # AI priorities, charts, activity
+        │       ├── assignments/    # Table + progress rings
+        │       ├── jobs/           # Kanban board + pipeline progress
+        │       ├── fitness/        # Chart.js weekly volume
+        │       ├── finance/        # Envelopes + transactions
+        │       ├── routines/       # Workout routines
+        │       ├── profile/        # Read-only account info
+        │       └── not-found.tsx   # Custom 404
         ├── components/
-        │   └── Sidebar.tsx
+        │   ├── Sidebar.tsx
+        │   ├── ThemeToggle.tsx     # Dark mode toggle
+        │   ├── icons.tsx           # SVG icon components
+        │   ├── primitives.tsx
+        │   └── skeletons.tsx       # Loading skeletons
         └── lib/
-            └── api.ts             # Axios client with Vercel proxy
+            └── api.ts              # Axios client
 ```
 
 ---
@@ -100,9 +141,9 @@ Browser (Vercel frontend)
       ↓ /api/* (Vercel rewrites proxy)
 Render.com (FastAPI + Docker)
       ↓ SQLAlchemy ORM
-Render PostgreSQL (6 tables)
+Render PostgreSQL (9 tables)
 
-FastAPI → Anthropic Claude Haiku (cached in ai_insights table)
+FastAPI → Anthropic Claude (cached in ai_insights table)
 GitHub  → GitHub Actions → Render deploy + Vercel deploy
 ```
 
@@ -113,15 +154,18 @@ The frontend (`lifeos-lac.vercel.app`) and backend (`lifeos-zggd.onrender.com`) 
 
 ## Database Schema
 
-Six tables, all with UUID primary keys and timestamps:
+9 tables. All tables have `created_at` and `updated_at` timestamps. All tables except `users` have a `user_id` foreign key. All primary keys are UUIDs.
 
 ```
-users            — id, email, hashed_password, name, monthly_budget, weekly_capacity_hours
-assignments      — id, user_id, title, course, due_date, estimated_hours, status, deleted_at
-job_applications — id, user_id, company, role, applied_date, status, followup_date, notes
-workouts         — id, user_id, type, duration_mins, notes, logged_at
-expenses         — id, user_id, amount, category, note, spent_at
-ai_insights      — id, user_id, type, content, generated_at
+users              — id, email, hashed_password, name, monthly_budget, weekly_capacity_hours
+assignments        — id, user_id, title, course, due_date, estimated_hours, status, deleted_at
+job_applications   — id, user_id, company, role, applied_date, status, followup_date, notes
+workouts           — id, user_id, routine_id (nullable FK), type, duration_mins, notes, logged_at
+routines           — id, user_id, name
+routine_items      — id, routine_id (FK cascade), exercise_name, sets, reps, duration_mins, day_of_week
+expenses           — id, user_id, amount, category, note, location, spent_at, group_override
+ai_insights        — id, user_id, type, content, generated_at
+activity_logs      — id, user_id, action, entity_type, entity_id, details, created_at
 ```
 
 ---
@@ -135,22 +179,63 @@ ai_insights      — id, user_id, type, content, generated_at
 | POST | `/auth/login` | Login, sets JWT cookie |
 | POST | `/auth/logout` | Clears cookie |
 | GET | `/auth/me` | Returns current user |
+| PATCH | `/auth/me` | Update name, budget, capacity, password |
 
-### Modules
+### Assignments
 | Method | Endpoint | Description |
 |---|---|---|
-| POST/GET/PATCH/DELETE | `/assignments` | Full CRUD, soft delete |
-| POST/GET/PATCH/DELETE | `/jobs` | Kanban pipeline, auto followup date |
-| POST/GET/DELETE | `/workouts` | Workout log |
-| POST/GET/DELETE | `/expenses` | Expense tracker |
-| GET | `/dashboard` | Aggregate summary across all 4 modules |
+| POST | `/assignments` | Create assignment |
+| GET | `/assignments` | List (sorted: pending → overdue → done) |
+| PATCH | `/assignments/:id` | Update status/details |
+| DELETE | `/assignments/:id` | Soft delete (sets deleted_at) |
 
-### AI
+### Jobs
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/ai/briefing` | Daily insight (cached 6hrs) |
+| POST | `/jobs` | Create application |
+| GET | `/jobs` | List all |
+| GET | `/jobs/:id` | Get by ID |
+| PATCH | `/jobs/:id` | Update status/details |
+| DELETE | `/jobs/:id` | Hard delete |
+
+### Workouts
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/workouts` | Log workout |
+| GET | `/workouts` | List all |
+| DELETE | `/workouts/:id` | Delete |
+
+### Routines
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/routines` | Create routine |
+| GET | `/routines` | List with items |
+| GET | `/routines/:id` | Get by ID |
+| PATCH | `/routines/:id` | Update |
+| DELETE | `/routines/:id` | Delete |
+| POST | `/routines/:id/items` | Add exercise to routine |
+| DELETE | `/routines/:id/items/:item_id` | Remove exercise |
+
+### Expenses
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/expenses` | Log expense |
+| GET | `/expenses` | List (returns `{expenses, monthly_budget}`) |
+| PATCH | `/expenses/:id` | Update |
+| DELETE | `/expenses/:id` | Delete |
+
+### Dashboard & AI
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/dashboard` | Aggregate summary across all modules |
+| POST | `/ai/briefing` | AI daily insight (JSON-structured: priorities + summary) |
 | POST | `/ai/weekly` | Weekly digest |
 | POST | `/ai/refresh` | Force regenerate |
+
+### Activity
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/activity` | Recent activity log |
 
 ---
 
@@ -164,7 +249,7 @@ ai_insights      — id, user_id, type, content, generated_at
 ### Run locally
 
 ```bash
-# Boot Postgres + API
+# Boot Postgres + API (auto-runs migrations + seeds demo user)
 docker compose up --build
 
 # Frontend (separate terminal)
@@ -179,18 +264,11 @@ npm run dev
 | API | http://localhost:8000 |
 | Swagger UI | http://localhost:8000/docs |
 
-### Run migrations
+### Run tests
 
 ```bash
 cd backend
-alembic upgrade head
-```
-
-### Seed demo data
-
-```bash
-cd backend
-python -m app.seed
+python -m pytest tests/ -v
 ```
 
 ---
