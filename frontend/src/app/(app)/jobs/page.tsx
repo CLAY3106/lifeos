@@ -4,6 +4,8 @@ import useSWR from "swr"
 import Link from "next/link"
 import api from "@/lib/api"
 import { CalendarIcon, PlusIcon, TrashIcon } from "@/components/icons"
+import toast from "react-hot-toast"
+import { KanbanSkeleton } from "@/components/skeletons"
 
 const fetcher = (url: string) => api.get(url).then(r => r.data)
 
@@ -27,6 +29,56 @@ const STATUS_LABELS: Record<string, string> = {
 
 const STATUSES = ["applied", "oa", "interview_scheduled", "offer", "rejected", "dropped"]
 
+const PIPELINE_STEPS = ["applied", "oa", "interview_scheduled", "offer"]
+
+function getProgress(status: string) {
+  const index = PIPELINE_STEPS.indexOf(status)
+  if (index === -1) return { filled: 0, percent: 0, rejected: true }
+  return { filled: index + 1, percent: Math.round(((index + 1) / PIPELINE_STEPS.length) * 100), rejected: false }
+}
+
+function PipelineBar({ status }: { status: string }) {
+  const { filled, percent, rejected } = getProgress(status)
+  const isTerminal = status === "rejected" || status === "dropped"
+
+  return (
+    <div className="mt-2.5 mb-1">
+      <div className="flex items-center gap-0">
+        {PIPELINE_STEPS.map((step, i) => {
+          const complete = i < filled
+          return (
+            <div key={step} className="flex items-center">
+              <div
+                className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                  isTerminal
+                    ? "bg-[var(--danger)]"
+                    : complete
+                    ? "bg-[var(--accent)]"
+                    : "bg-[var(--rule)]"
+                }`}
+              />
+              {i < PIPELINE_STEPS.length - 1 && (
+                <div
+                  className={`w-4 h-0.5 ${
+                    isTerminal
+                      ? "bg-[var(--danger)]"
+                      : complete && i + 1 < filled
+                      ? "bg-[var(--accent)]"
+                      : "bg-[var(--rule)]"
+                  }`}
+                />
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <p className={`text-[10px] mt-1 font-medium ${isTerminal ? "text-[var(--danger)]" : "text-[var(--muted-2)]"}`}>
+        {isTerminal ? STATUS_LABELS[status] : `${percent}%`}
+      </p>
+    </div>
+  )
+}
+
 const inputClass =
   "border border-[var(--rule)] rounded-md px-3 py-2 text-sm bg-[var(--surface)] text-[var(--foreground)] placeholder:text-[var(--muted-2)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent transition-colors"
 
@@ -46,19 +98,22 @@ export default function JobsPage() {
       setRole("")
       setAppliedDate("")
       mutate()
+      toast.success("Job added")
+    } catch {
+      toast.error("Failed to add job")
     } finally {
       setLoading(false)
     }
   }
 
-  async function handleStatusChange(id: string, status: string) {
-    await api.patch(`/jobs/${id}`, { status })
-    mutate()
-  }
-
   async function handleDelete(id: string) {
-    await api.delete(`/jobs/${id}`)
-    mutate()
+    try {
+      await api.delete(`/jobs/${id}`)
+      mutate()
+      toast.success("Job deleted")
+    } catch {
+      toast.error("Failed to delete job")
+    }
   }
 
   return (
@@ -107,60 +162,37 @@ export default function JobsPage() {
       </div>
 
       {/* Kanban columns */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {STATUSES.map(status => {
-          const jobs = data ? data.filter((j: any) => j.status === status) : []
-          return (
-            <div
-              key={status}
-              className="bg-[var(--surface)] rounded-lg border border-[var(--rule)] flex flex-col"
-            >
-              <div className="p-3 border-b border-[var(--rule)] bg-[var(--callout-gray)] rounded-t-lg flex items-center justify-between">
-                <span
-                  className={`text-xs font-semibold px-2 py-1 rounded-full ${STATUS_COLORS[status]}`}
-                >
-                  {STATUS_LABELS[status]}
-                </span>
-                <span className="text-xs font-medium text-[var(--muted-2)] tabular-nums">
-                  {jobs.length}
-                </span>
-              </div>
-              <div className="p-3 space-y-2 flex-1">
-                {!data ? (
-                  <p className="text-xs text-[var(--muted-2)] py-4 text-center">Loading…</p>
-                ) : jobs.length === 0 ? (
-                  <p className="text-xs text-[var(--muted-2)] py-4 text-center">None</p>
-                ) : (
-                  jobs.map((j: any) => (
-                    <Link
-                      key={j.id}
-                      href={`/jobs/${j.id}`}
-                      className="block border border-[var(--rule)] rounded-md p-3 bg-[var(--surface)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
-                    >
-                      <p className="font-semibold text-sm text-[var(--foreground)]">{j.company}</p>
-                      <p className="text-xs text-[var(--muted)] mt-0.5">{j.role}</p>
-                      <p className="text-xs text-[var(--muted-2)] mt-1.5 flex items-center gap-1">
-                        <CalendarIcon className="w-3 h-3 shrink-0" />
-                        {j.followup_date
-                          ? new Date(j.followup_date).toLocaleDateString()
-                          : "No follow-up set"}
-                      </p>
-                      <div className="flex items-center gap-2 mt-2.5">
-                        <select
-                          value={j.status}
-                          onClick={e => e.stopPropagation()}
-                          onChange={e => {
-                            e.stopPropagation()
-                            handleStatusChange(j.id, e.target.value)
-                          }}
-                          className="text-xs border border-[var(--rule)] rounded-md px-1.5 py-1 flex-1 bg-[var(--surface)] text-[var(--foreground)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-colors"
-                        >
-                          {STATUSES.map(s => (
-                            <option key={s} value={s}>
-                              {STATUS_LABELS[s]}
-                            </option>
-                          ))}
-                        </select>
+      {!data ? (
+        <KanbanSkeleton />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+          {STATUSES.map(status => {
+            const jobs = data.filter((j: any) => j.status === status)
+            return (
+              <div
+                key={status}
+                className="bg-[var(--surface)] rounded-lg border border-[var(--rule)] flex flex-col min-w-0"
+              >
+                <div className="p-3 border-b border-[var(--rule)] bg-[var(--callout-gray)] rounded-t-lg flex items-center justify-between">
+                  <span
+                    className={`text-xs font-semibold px-2 py-1 rounded-full ${STATUS_COLORS[status]}`}
+                  >
+                    {STATUS_LABELS[status]}
+                  </span>
+                  <span className="text-xs font-medium text-[var(--muted-2)] tabular-nums">
+                    {jobs.length}
+                  </span>
+                </div>
+                <div className="p-3 space-y-2 flex-1">
+                  {jobs.length === 0 ? (
+                    <p className="text-xs text-[var(--muted-2)] py-4 text-center">None</p>
+                  ) : (
+                    jobs.map((j: any) => (
+                      <Link
+                        key={j.id}
+                        href={`/jobs/${j.id}`}
+                        className="block border border-[var(--rule)] rounded-md p-3 bg-[var(--surface)] hover:bg-[var(--surface-hover)] transition-colors cursor-pointer overflow-hidden relative"
+                      >
                         <button
                           onClick={e => {
                             e.preventDefault()
@@ -168,19 +200,28 @@ export default function JobsPage() {
                             handleDelete(j.id)
                           }}
                           aria-label={`Delete application to ${j.company}`}
-                          className="p-1.5 rounded-md text-[var(--muted-2)] hover:text-[var(--danger)] hover:bg-[var(--callout-red)] cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--danger)]"
+                          className="absolute top-2 right-2 p-1 rounded-md text-[var(--muted-2)] hover:text-[var(--danger)] hover:bg-[var(--callout-red)] cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--danger)] z-10"
                         >
                           <TrashIcon className="w-3.5 h-3.5" />
                         </button>
-                      </div>
-                    </Link>
-                  ))
-                )}
+                        <p className="font-semibold text-sm text-[var(--foreground)] pr-6">{j.company}</p>
+                        <p className="text-xs text-[var(--muted)] mt-0.5">{j.role}</p>
+                        <PipelineBar status={j.status} />
+                        <p className="text-xs text-[var(--muted-2)] mt-1 flex items-center gap-1">
+                          <CalendarIcon className="w-3 h-3 shrink-0" />
+                          {j.followup_date
+                            ? new Date(j.followup_date).toLocaleDateString()
+                            : "No follow-up set"}
+                        </p>
+                      </Link>
+                    ))
+                  )}
+                </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

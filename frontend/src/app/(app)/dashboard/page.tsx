@@ -1,4 +1,5 @@
 "use client"
+import { useState } from "react"
 import useSWR from "swr"
 import api from "@/lib/api"
 import {
@@ -13,6 +14,8 @@ import {
   RefreshIcon,
 } from "@/components/icons"
 import { Callout, StatCallout, SectionHeading, Tag, EmptyRow } from "@/components/primitives"
+import toast from "react-hot-toast"
+import { DashboardSkeleton } from "@/components/skeletons"
 
 const fetcher = (url: string) => api.get(url).then(r => r.data)
 
@@ -32,27 +35,42 @@ function longDate() {
   })
 }
 
+function ProgressRing({ complete }: { complete: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 18 18" className="shrink-0">
+      <circle cx="9" cy="9" r="7" fill="none" stroke="var(--rule)" strokeWidth="2" />
+      {complete ? (
+        <circle cx="9" cy="9" r="7" fill="var(--accent)" stroke="var(--accent)" strokeWidth="2" />
+      ) : (
+        <circle
+          cx="9" cy="9" r="7" fill="none" stroke="var(--accent)" strokeWidth="2"
+          strokeDasharray="44" strokeDashoffset="11"
+        />
+      )}
+    </svg>
+  )
+}
+
 export default function DashboardPage() {
+  const [showFullBriefing, setShowFullBriefing] = useState(false)
   const { data, isLoading } = useSWR("/dashboard", fetcher, {
     refreshInterval: 30000,
   })
 
-  const { data: aiData, error: aiError, mutate: refreshAI, isValidating: aiLoading } = useSWR(
+  const { data: aiData, mutate: refreshAI, isValidating: aiLoading } = useSWR(
     "/ai/briefing",
     () => api.post("/ai/briefing").then(r => r.data)
   )
 
   if (isLoading) {
-    return (
-      <div className="max-w-5xl mx-auto px-16 py-16">
-        <p className="text-sm text-[var(--muted)]">Loading…</p>
-      </div>
-    )
+    return <DashboardSkeleton />
   }
   if (!data) {
     return (
       <div className="max-w-5xl mx-auto px-16 py-16">
-        <p className="text-sm text-[var(--muted)]">No data.</p>
+        <div className="bg-[var(--callout-red)] rounded-md p-4 flex gap-3">
+          <p className="text-sm text-[var(--foreground)]">Failed to load dashboard data. Please try again.</p>
+        </div>
       </div>
     )
   }
@@ -60,10 +78,6 @@ export default function DashboardPage() {
   const loadPercent = data.assignments.load_percent
   const budgetPercent = data.finance.budget_percent
   const daysSinceWorkout = data.fitness.days_since_workout
-
-  const rateLimited =
-    aiError?.response?.status === 429 ||
-    (typeof aiError?.message === "string" && aiError.message.includes("429"))
 
   return (
     <div className="max-w-5xl mx-auto px-16">
@@ -97,18 +111,43 @@ export default function DashboardPage() {
                 Refresh
               </button>
             </div>
-            {rateLimited ? (
-              <p className="text-sm text-[var(--muted)] italic">
-                Daily AI limit reached (10/day). Resets tomorrow.
-              </p>
-            ) : aiData ? (
+            {aiLoading ? (
+              <p className="text-sm text-[var(--muted)] italic">Generating your brief…</p>
+            ) : aiData && aiData.priorities?.length > 0 ? (
+              <div>
+                <div className="space-y-2.5 mb-3">
+                  {aiData.priorities.map((p: any, i: number) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[var(--accent)] text-white text-xs font-bold shrink-0 mt-0.5">
+                        {i + 1}
+                      </span>
+                      <div>
+                        <p className="text-sm font-medium text-[var(--foreground)]">{p.title}</p>
+                        <p className="text-xs text-[var(--muted)]">{p.reason}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {aiData.summary && (
+                  <button
+                    onClick={() => setShowFullBriefing(!showFullBriefing)}
+                    className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors cursor-pointer"
+                  >
+                    {showFullBriefing ? "Hide summary" : "Show summary"}
+                  </button>
+                )}
+                {showFullBriefing && aiData.summary && (
+                  <p className="text-[15px] leading-relaxed text-[var(--foreground)] mt-2">
+                    {aiData.summary}
+                  </p>
+                )}
+              </div>
+            ) : aiData?.summary ? (
               <p className="text-[15px] leading-relaxed text-[var(--foreground)]">
-                {aiData.content}
+                {aiData.summary}
               </p>
             ) : (
-              <p className="text-sm text-[var(--muted)] italic">
-                {aiLoading ? "Generating your brief…" : "No brief yet."}
-              </p>
+              <p className="text-sm text-[var(--muted)] italic">No brief yet.</p>
             )}
           </div>
         </Callout>
@@ -122,7 +161,8 @@ export default function DashboardPage() {
               <EmptyRow icon={CheckCircleIcon} text="Nothing due this week." />
             ) : (
               <div className="border border-[var(--rule)] rounded-md overflow-hidden">
-                <div className="grid grid-cols-[1fr_120px_100px_100px] gap-4 px-3 py-2 bg-[var(--callout-gray)] text-[11px] font-medium text-[var(--muted)] uppercase tracking-wide">
+                <div className="grid grid-cols-[24px_1fr_120px_100px_100px] gap-3 px-3 py-2 bg-[var(--callout-gray)] text-[11px] font-medium text-[var(--muted)] uppercase tracking-wide">
+                  <span></span>
                   <span>Assignment</span>
                   <span>Course</span>
                   <span>Est. hrs</span>
@@ -144,13 +184,14 @@ export default function DashboardPage() {
                   return (
                     <div
                       key={a.id}
-                      className={`grid grid-cols-[1fr_120px_100px_100px] gap-4 px-3 py-2.5 items-center text-sm hover:bg-[var(--surface-hover)] transition-colors ${
+                      className={`grid grid-cols-[24px_1fr_120px_100px_100px] gap-3 px-3 py-2.5 items-center text-sm hover:bg-[var(--surface-hover)] transition-colors ${
                         i < data.assignments.upcoming.length - 1
                           ? "border-b border-[var(--rule)]"
                           : ""
                       }`}
                     >
-                      <span className="text-[var(--foreground)]">{a.title}</span>
+                      <ProgressRing complete={a.status === "done"} />
+                      <span className="text-[var(--foreground)] truncate">{a.title}</span>
                       <Tag>{a.course || "—"}</Tag>
                       <span className="text-[var(--muted)]">
                         {a.estimated_hours ? `${a.estimated_hours}h` : "—"}
