@@ -1,6 +1,7 @@
 import uuid
 from sqlalchemy import Column, String, Integer, Enum, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 from app.database import Base
 from app.models.base import TimestampMixin
 import enum
@@ -20,6 +21,7 @@ class Routine(Base, TimestampMixin):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     name = Column(String, nullable=False)
+    items = relationship("RoutineItem", cascade="all, delete-orphan", order_by="RoutineItem.order_index")
 
 class RoutineItem(Base, TimestampMixin):
     __tablename__ = "routine_items"
