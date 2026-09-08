@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, Float, DateTime, Text, Enum
+from sqlalchemy import Column, Float, DateTime, Text, Enum, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import ForeignKey
 from app.database import Base
@@ -26,5 +26,6 @@ class Expense(Base, TimestampMixin):
     amount = Column(Float, nullable=False)
     category = Column(Enum(ExpenseCategory), default=ExpenseCategory.other)
     note = Column(Text, nullable=True)
+    location = Column(String, nullable=True)
     spent_at = Column(DateTime, nullable=True)
     group_override = Column(Enum(BudgetGroup), nullable=True)
