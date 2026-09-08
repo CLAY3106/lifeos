@@ -4,12 +4,14 @@ from sqlalchemy.orm import Session
 from app.models.workout import Workout
 from app.models.user import User
 from app.schemas.workout import WorkoutCreate
+from app.services.activity_log_service import log_activity
 
 
 def create_workout(db: Session, user: User, data: WorkoutCreate) -> Workout:
     workout = Workout(
         id=uuid.uuid4(),
         user_id=user.id,
+        routine_id=data.routine_id,
         type=data.type,
         duration_mins=data.duration_mins,
         notes=data.notes,
@@ -18,4 +20,5 @@ def create_workout(db: Session, user: User, data: WorkoutCreate) -> Workout:
     db.add(workout)
     db.commit()
     db.refresh(workout)
+    log_activity(db, user.id, "Logged workout", "workout", workout.id, f"{data.type} for {data.duration_mins} min")
     return workout

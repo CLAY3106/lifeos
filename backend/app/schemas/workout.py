@@ -8,10 +8,12 @@ class WorkoutCreate(BaseModel):
     duration_mins: int
     notes: Optional[str] = None
     logged_at: Optional[datetime] = None
+    routine_id: Optional[UUID] = None
 
 class WorkoutResponse(BaseModel):
     id: UUID
     user_id: UUID
+    routine_id: Optional[UUID] = None
     type: str
     duration_mins: int
     notes: Optional[str] = None

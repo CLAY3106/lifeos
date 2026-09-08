@@ -6,6 +6,7 @@ from app.models.assignment import Assignment, AssignmentStatus
 from app.models.job import JobApplication, JobStatus
 from app.models.workout import Workout
 from app.models.expense import Expense, ExpenseCategory
+from app.models.routine import Routine, RoutineItem, RoutineDayOfWeek
 from app.services.auth import hash_password
 
 def seed():
@@ -44,7 +45,7 @@ def seed():
 
     # Job applications
     jobs = [
-        JobApplication(id=uuid.uuid4(), user_id=user.id, company="Google", role="SWE Intern", applied_date=(now - timedelta(days=14)).date(), status=JobStatus.interview, followup_date=(now - timedelta(days=7)).date()),
+        JobApplication(id=uuid.uuid4(), user_id=user.id, company="Google", role="SWE Intern", applied_date=(now - timedelta(days=14)).date(), status=JobStatus.interview_scheduled, followup_date=(now - timedelta(days=7)).date()),
         JobApplication(id=uuid.uuid4(), user_id=user.id, company="Meta", role="SWE Intern", applied_date=(now - timedelta(days=10)).date(), status=JobStatus.applied, followup_date=(now - timedelta(days=3)).date()),
         JobApplication(id=uuid.uuid4(), user_id=user.id, company="Apple", role="ML Intern", applied_date=(now - timedelta(days=7)).date(), status=JobStatus.applied, followup_date=(now).date()),
         JobApplication(id=uuid.uuid4(), user_id=user.id, company="Amazon", role="SDE Intern", applied_date=(now - timedelta(days=20)).date(), status=JobStatus.rejected, followup_date=(now - timedelta(days=13)).date()),
@@ -75,6 +76,41 @@ def seed():
         Expense(id=uuid.uuid4(), user_id=user.id, amount=22.00, category=ExpenseCategory.food, note="Coffee + snacks", spent_at=now - timedelta(days=14)),
     ]
     db.add_all(expenses)
+
+    # Routines
+    push_pull = Routine(id=uuid.uuid4(), user_id=user.id, name="Push/Pull")
+    db.add(push_pull)
+    db.flush()
+
+    push_pull_items = [
+        RoutineItem(id=uuid.uuid4(), routine_id=push_pull.id, exercise_name="Bench Press", sets=4, reps=8, day_of_week=RoutineDayOfWeek.monday, order_index=0),
+        RoutineItem(id=uuid.uuid4(), routine_id=push_pull.id, exercise_name="Overhead Press", sets=3, reps=10, day_of_week=RoutineDayOfWeek.monday, order_index=1),
+        RoutineItem(id=uuid.uuid4(), routine_id=push_pull.id, exercise_name="Dumbbell Rows", sets=4, reps=8, day_of_week=RoutineDayOfWeek.thursday, order_index=2),
+        RoutineItem(id=uuid.uuid4(), routine_id=push_pull.id, exercise_name="Pull-ups", sets=3, reps=10, day_of_week=RoutineDayOfWeek.thursday, order_index=3),
+    ]
+    db.add_all(push_pull_items)
+
+    leg_day = Routine(id=uuid.uuid4(), user_id=user.id, name="Leg Day")
+    db.add(leg_day)
+    db.flush()
+
+    leg_day_items = [
+        RoutineItem(id=uuid.uuid4(), routine_id=leg_day.id, exercise_name="Squats", sets=5, reps=5, day_of_week=RoutineDayOfWeek.tuesday, order_index=0),
+        RoutineItem(id=uuid.uuid4(), routine_id=leg_day.id, exercise_name="Romanian Deadlift", sets=3, reps=10, day_of_week=RoutineDayOfWeek.tuesday, order_index=1),
+        RoutineItem(id=uuid.uuid4(), routine_id=leg_day.id, exercise_name="Leg Press", sets=3, reps=12, day_of_week=RoutineDayOfWeek.tuesday, order_index=2),
+        RoutineItem(id=uuid.uuid4(), routine_id=leg_day.id, exercise_name="Calf Raises", sets=4, reps=15, day_of_week=RoutineDayOfWeek.friday, order_index=3),
+    ]
+    db.add_all(leg_day_items)
+
+    cardio = Routine(id=uuid.uuid4(), user_id=user.id, name="Cardio")
+    db.add(cardio)
+    db.flush()
+
+    cardio_items = [
+        RoutineItem(id=uuid.uuid4(), routine_id=cardio.id, exercise_name="5K Run", duration_mins=30, day_of_week=RoutineDayOfWeek.wednesday, order_index=0),
+        RoutineItem(id=uuid.uuid4(), routine_id=cardio.id, exercise_name="Jump Rope", duration_mins=15, day_of_week=RoutineDayOfWeek.wednesday, order_index=1),
+    ]
+    db.add_all(cardio_items)
 
     db.commit()
     db.close()

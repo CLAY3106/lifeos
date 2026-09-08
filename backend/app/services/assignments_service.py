@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.models.assignment import Assignment
 from app.models.user import User
 from app.schemas.assignment import AssignmentCreate, AssignmentUpdate
+from app.services.activity_log_service import log_activity
 
 
 def create_assignment(db: Session, user: User, data: AssignmentCreate) -> Assignment:
@@ -17,6 +18,7 @@ def create_assignment(db: Session, user: User, data: AssignmentCreate) -> Assign
     db.add(assignment)
     db.commit()
     db.refresh(assignment)
+    log_activity(db, user.id, "Added assignment", "assignment", assignment.id, data.title)
     return assignment
 
 
@@ -34,4 +36,6 @@ def update_assignment(db: Session, user: User, assignment_id: uuid.UUID, data: A
 
     db.commit()
     db.refresh(assignment)
+    if data.status:
+        log_activity(db, user.id, f"Updated assignment to {data.status}", "assignment", assignment.id)
     return assignment

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.models.job import JobApplication, JobStatus
 from app.models.user import User
 from app.schemas.job import JobCreate, JobUpdate
+from app.services.activity_log_service import log_activity
 
 
 def create_job(db: Session, user: User, data: JobCreate) -> JobApplication:
@@ -23,6 +24,7 @@ def create_job(db: Session, user: User, data: JobCreate) -> JobApplication:
     db.add(job)
     db.commit()
     db.refresh(job)
+    log_activity(db, user.id, "Added job application", "job", job.id, f"{data.role} at {data.company}")
     return job
 
 
@@ -52,4 +54,5 @@ def update_job_status(db: Session, user: User, job_id: uuid.UUID, status: JobSta
     job.status = status
     db.commit()
     db.refresh(job)
+    log_activity(db, user.id, f"Updated job to {status.value}", "job", job.id)
     return job
