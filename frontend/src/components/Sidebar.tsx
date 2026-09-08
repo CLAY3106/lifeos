@@ -3,7 +3,8 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import api from "@/lib/api"
 import { useRouter } from "next/navigation"
-import { LeafIcon, HomeIcon, BookIcon, BriefcaseIcon, ActivityIcon, WalletIcon, LogOutIcon } from "@/components/icons"
+import { LeafIcon, HomeIcon, BookIcon, BriefcaseIcon, ActivityIcon, WalletIcon, LogOutIcon, UserIcon } from "@/components/icons"
+import ThemeToggle from "@/components/ThemeToggle"
 
 const links = [
   { href: "/dashboard", label: "Dashboard", Icon: HomeIcon },
@@ -60,6 +61,18 @@ export default function Sidebar() {
       <div className="flex-1" />
 
       <div className="px-3 pb-3 pt-2 border-t border-[var(--rule)]">
+        <Link
+          href="/profile"
+          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors mb-1 ${
+            pathname === "/profile"
+              ? "bg-black/[.06] text-[var(--foreground)] font-medium"
+              : "text-[var(--muted)] hover:bg-black/[.04] hover:text-[var(--foreground)]"
+          }`}
+        >
+          <UserIcon className="w-[18px] h-[18px] shrink-0" />
+          <span>Profile</span>
+        </Link>
+        <ThemeToggle />
         <button
           onClick={handleLogout}
           className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm text-[var(--muted)] hover:bg-black/[.04] hover:text-[var(--foreground)] transition-colors"
