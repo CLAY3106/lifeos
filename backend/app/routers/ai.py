@@ -258,7 +258,6 @@ def generate_insight(db: Session, user: User, insight_type: InsightType, prompt:
 
 @router.post("/briefing")
 def get_briefing(
-    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):

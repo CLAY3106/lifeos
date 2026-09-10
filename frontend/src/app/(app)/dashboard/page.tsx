@@ -61,9 +61,10 @@ export default function DashboardPage() {
     "/ai/briefing",
     () => api.post("/ai/briefing").then(r => r.data),
     {
-      revalidateOnFocus: false,    // Don't re-fetch when switching tabs
-      revalidateOnReconnect: false, // Don't re-fetch on network reconnect
-      dedupingInterval: 3600000,   // Cache responses for 1 hour (prevents duplicate requests)
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      dedupingInterval: 3600000,
+      onError: () => {},  // Silently handle errors (e.g. 429 rate limit)
     }
   )
 
@@ -112,7 +113,10 @@ export default function DashboardPage() {
                 onClick={() => {
                   refreshAI(
                     () => api.post("/ai/refresh").then(r => r.data),
-                    { revalidate: false }  // Don't re-fetch — use the response directly
+                    {
+                      revalidate: false,
+                      onError: () => toast.error("Rate limited — try again later"),
+                    }
                   )
                 }}
                 className="inline-flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1"
