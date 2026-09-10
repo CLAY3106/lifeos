@@ -110,30 +110,45 @@ export default function FinancePage() {
     toast.success("Expense deleted")
   }
 
-  const total = data?.reduce((sum: number, e: any) => sum + e.amount, 0) ?? 0
+  const total = useMemo(() => {
+    if (!data) return 0
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    return data
+      .filter((e: any) => new Date(e.spent_at) >= startOfMonth)
+      .reduce((sum: number, e: any) => sum + e.amount, 0)
+  }, [data])
 
-  // Envelope calculations
+  // Envelope calculations — only current month
   const envelopeData = useMemo(() => {
     if (!data) return []
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const monthExpenses = data.filter((e: any) => new Date(e.spent_at) >= startOfMonth)
+    const monthTotal = monthExpenses.reduce((sum: number, e: any) => sum + e.amount, 0)
+
     return ENVELOPE_CONFIG.map(env => {
       const spent = env.key === "savings"
         ? 0
-        : data.filter((e: any) => env.categories.includes(e.category))
+        : monthExpenses.filter((e: any) => env.categories.includes(e.category))
             .reduce((sum: number, e: any) => sum + e.amount, 0)
       const limit = monthlyBudget * (env.percent / 100)
       const remaining = env.key === "savings"
-        ? monthlyBudget - data.reduce((sum: number, e: any) => sum + e.amount, 0)
+        ? monthlyBudget - monthTotal
         : limit - spent
       return { ...env, spent, limit, remaining: Math.max(0, remaining) }
     })
   }, [data, monthlyBudget])
 
-  // Filtered expenses for expanded envelope
+  // Filtered expenses for expanded envelope — current month only
   const envelopeExpenses = useMemo(() => {
     if (!expandedEnvelope || !data) return []
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const monthExpenses = data.filter((e: any) => new Date(e.spent_at) >= startOfMonth)
     const env = ENVELOPE_CONFIG.find(e => e.key === expandedEnvelope)
     if (!env) return []
-    let filtered = data.filter((e: any) =>
+    let filtered = monthExpenses.filter((e: any) =>
       env.key === "savings" ? true : env.categories.includes(e.category)
     )
     if (filterCategory) {
@@ -172,11 +187,14 @@ export default function FinancePage() {
     return filtered
   }, [data, searchQuery, dateFrom, dateTo])
 
-  // Chart data
+  // Chart data — current month only
   const categoryTotals = useMemo(() => {
     if (!data) return {}
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const monthExpenses = data.filter((e: any) => new Date(e.spent_at) >= startOfMonth)
     const totals: Record<string, number> = {}
-    for (const e of data) {
+    for (const e of monthExpenses) {
       totals[e.category] = (totals[e.category] || 0) + e.amount
     }
     return totals
@@ -204,13 +222,15 @@ export default function FinancePage() {
   const dailyData = useMemo(() => {
     if (!data) return { labels: [], amounts: [] }
     const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const monthExpenses = data.filter((e: any) => new Date(e.spent_at) >= startOfMonth)
     const days: { label: string; amount: number }[] = []
     for (let i = 13; i >= 0; i--) {
       const d = new Date(now)
       d.setDate(d.getDate() - i)
       const key = d.toISOString().slice(0, 10)
       const label = d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
-      const amount = data
+      const amount = monthExpenses
         .filter((e: any) => new Date(e.spent_at).toISOString().slice(0, 10) === key)
         .reduce((sum: number, e: any) => sum + e.amount, 0)
       days.push({ label, amount })
