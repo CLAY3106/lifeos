@@ -59,7 +59,12 @@ export default function DashboardPage() {
 
   const { data: aiData, mutate: refreshAI, isValidating: aiLoading } = useSWR(
     "/ai/briefing",
-    () => api.post("/ai/briefing").then(r => r.data)
+    () => api.post("/ai/briefing").then(r => r.data),
+    {
+      revalidateOnFocus: false,    // Don't re-fetch when switching tabs
+      revalidateOnReconnect: false, // Don't re-fetch on network reconnect
+      dedupingInterval: 3600000,   // Cache responses for 1 hour (prevents duplicate requests)
+    }
   )
 
   if (isLoading) {
@@ -104,7 +109,12 @@ export default function DashboardPage() {
                 AI Briefing
               </p>
               <button
-                onClick={() => api.post("/ai/refresh").then(() => refreshAI())}
+                onClick={() => {
+                  refreshAI(
+                    () => api.post("/ai/refresh").then(r => r.data),
+                    { revalidate: false }  // Don't re-fetch — use the response directly
+                  )
+                }}
                 className="inline-flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1"
               >
                 <RefreshIcon className="w-3.5 h-3.5" />

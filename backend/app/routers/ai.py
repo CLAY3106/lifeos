@@ -313,13 +313,12 @@ def get_weekly(
 
 
 @router.post("/refresh")
-@limiter.limit("10/day")
 def refresh_briefing(
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Force refresh briefing — bypasses cache, rate limited to 10 per day."""
+    """Force refresh briefing — bypasses cache. Cache prevents redundant AI calls anyway."""
     signals = score_signals(db, current_user)
     scores = [{"domain": s.domain, "score": s.score, "title": s.title} for s in signals[:5]]
 
