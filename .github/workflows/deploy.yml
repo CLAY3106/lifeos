@@ -21,7 +21,7 @@ jobs:
 
       - name: Run tests
         working-directory: ./backend
-        run: pytest --tb=short || true
+        run: pytest --tb=short
 
       - name: Trigger Render deploy
         run: |
@@ -31,6 +31,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: ./frontend
+        run: npm run lint
+
+      - name: Build
+        working-directory: ./frontend
+        run: npm run build
 
       - name: Install Vercel CLI
         run: npm install -g vercel@latest

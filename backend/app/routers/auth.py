@@ -15,20 +15,24 @@ Security notes:
 - Token expiry is 7 days (configurable via ACCESS_TOKEN_EXPIRE_DAYS)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Response, Cookie
+from fastapi import APIRouter, Depends, HTTPException, Response, Request
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse, UserUpdate, LoginRequest, Token
 from app.services.auth import hash_password, verify_password, authenticate_user, create_access_token
 from app.dependencies import get_current_user
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 import uuid
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("/register", response_model=UserResponse)
-def register(user_data: UserCreate, response: Response, db: Session = Depends(get_db)):
+@limiter.limit("3/minute")
+def register(request: Request, user_data: UserCreate, response: Response, db: Session = Depends(get_db)):
     """
     Register a new user account.
     
@@ -70,7 +74,8 @@ def register(user_data: UserCreate, response: Response, db: Session = Depends(ge
 
 
 @router.post("/login")
-def login(credentials: LoginRequest, response: Response, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(request: Request, credentials: LoginRequest, response: Response, db: Session = Depends(get_db)):
     """
     Authenticate a user and set JWT cookie.
     

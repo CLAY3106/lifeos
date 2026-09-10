@@ -1,10 +1,14 @@
 import uuid
+import os
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+
+# Set JWT_SECRET before importing app
+os.environ.setdefault("JWT_SECRET", "test-secret-for-testing-only")
 
 from app.database import Base, get_db
 from app.main import app

@@ -11,7 +11,7 @@ Security notes:
 - Passwords are hashed with Bcrypt (salted, one-way)
 - JWT tokens are signed with a secret key (HS256)
 - Tokens expire after 7 days (configurable via ACCESS_TOKEN_EXPIRE_DAYS)
-- The secret key is loaded from JWT_SECRET env var (defaults to dev key)
+- The secret key MUST be set via JWT_SECRET env var
 """
 
 from datetime import datetime, timedelta, timezone
@@ -21,8 +21,10 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 import os
 
-# Configuration — loaded from environment variables
-SECRET_KEY = os.getenv("JWT_SECRET", "dev-secret-change-in-production")
+# Configuration — JWT_SECRET must be set in environment
+SECRET_KEY = os.environ.get("JWT_SECRET")
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET environment variable is required")
 ALGORITHM = "HS256"  # HMAC-SHA256 for JWT signing
 ACCESS_TOKEN_EXPIRE_DAYS = 7  # Token validity period
 
