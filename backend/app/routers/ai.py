@@ -18,6 +18,7 @@ import uuid
 import os
 import time
 import json
+import re
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 limiter = Limiter(key_func=get_remote_address)
@@ -60,14 +61,13 @@ def get_cached_insight(db: Session, user_id, insight_type: InsightType):
         AIInsight.generated_at >= six_hours_ago
     ).first()
 
+import re
+
 def parse_briefing(content: str, generated_at, cached: bool = True):
-    # Strip markdown code fences if present
     cleaned = content.strip()
-    if cleaned.startswith("```"):
-        lines = cleaned.split("\n")
-        # Remove first and last lines (fences)
-        lines = [l for l in lines if not l.strip().startswith("```")]
-        cleaned = "\n".join(lines).strip()
+    cleaned = re.sub(r'^```(?:json)?\s*', '', cleaned)
+    cleaned = re.sub(r'\s*```$', '', cleaned)
+    cleaned = cleaned.strip()
     try:
         data = json.loads(cleaned)
         return {
