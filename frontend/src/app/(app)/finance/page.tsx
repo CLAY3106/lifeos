@@ -34,7 +34,6 @@ const expenseSchema = z.object({
     const num = Number(val)
     return !isNaN(num) && num > 0 && num <= 10000
   }, "Must be between $0.01 and $10,000"),
-  category: z.string().min(1, "Category is required"),
   group: z.string().optional(),
   note: z.string().optional(),
   location: z.string().optional(),
@@ -58,6 +57,14 @@ const ENVELOPE_CONFIG = [
   { key: "wants", label: "Wants", percent: 30, categories: WANTS_CATEGORIES, color: "#a855f7" },
   { key: "savings", label: "Savings", percent: 20, categories: [], color: "#22c55e" },
 ] as const
+
+const CATEGORY_TO_GROUP: Record<string, string> = {
+  food: "needs",
+  transport: "needs",
+  study: "needs",
+  fitness: "wants",
+  other: "wants",
+}
 
 function getEnvelopeColor(spent: number, limit: number) {
   if (limit <= 0) return "var(--muted)"
@@ -90,13 +97,13 @@ export default function FinancePage() {
     formState: { errors, isSubmitting },
   } = useForm<ExpenseForm>({
     resolver: zodResolver(expenseSchema),
-    defaultValues: { amount: undefined, category: "food", note: "", location: "" },
+    defaultValues: { amount: undefined, group: "needs", note: "", location: "" },
   })
 
   async function onSubmit(values: ExpenseForm) {
     await api.post("/expenses", {
       amount: parseFloat(values.amount),
-      category: values.category,
+      category: "other",
       group_override: values.group || undefined,
       note: values.note || undefined,
       location: values.location || undefined,
@@ -121,7 +128,7 @@ export default function FinancePage() {
       .reduce((sum: number, e: any) => sum + e.amount, 0)
   }, [data])
 
-  // Envelope calculations — only current month
+  // Envelope calculations — only current month, uses group_override
   const envelopeData = useMemo(() => {
     if (!data) return []
     const now = new Date()
@@ -132,8 +139,10 @@ export default function FinancePage() {
     return ENVELOPE_CONFIG.map(env => {
       const spent = env.key === "savings"
         ? 0
-        : monthExpenses.filter((e: any) => env.categories.includes(e.category))
-            .reduce((sum: number, e: any) => sum + e.amount, 0)
+        : monthExpenses.filter((e: any) => {
+            const group = e.group_override || CATEGORY_TO_GROUP[e.category] || "wants"
+            return group === env.key
+          }).reduce((sum: number, e: any) => sum + e.amount, 0)
       const limit = monthlyBudget * (env.percent / 100)
       const remaining = env.key === "savings"
         ? monthlyBudget - monthTotal
@@ -150,9 +159,10 @@ export default function FinancePage() {
     const monthExpenses = data.filter((e: any) => new Date(e.spent_at) >= startOfMonth)
     const env = ENVELOPE_CONFIG.find(e => e.key === expandedEnvelope)
     if (!env) return []
-    let filtered = monthExpenses.filter((e: any) =>
-      env.key === "savings" ? true : env.categories.includes(e.category)
-    )
+    let filtered = monthExpenses.filter((e: any) => {
+      const group = e.group_override || CATEGORY_TO_GROUP[e.category] || "wants"
+      return group === env.key
+    })
     if (filterCategory) {
       filtered = filtered.filter((e: any) => e.category === filterCategory)
     }
@@ -300,26 +310,20 @@ export default function FinancePage() {
               <p className="text-xs text-[var(--danger)] mt-1">{errors.amount.message}</p>
             )}
           </div>
-          <select {...register("category")} className={`${inputClass} cursor-pointer`}>
-            {CATEGORIES.map(c => (
-              <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
-            ))}
-          </select>
           <select {...register("group")} className={`${inputClass} cursor-pointer`}>
-            <option value="">Auto (default)</option>
             <option value="needs">Need</option>
             <option value="wants">Want</option>
           </select>
           <input
-            placeholder="Note (optional)"
+            placeholder="What was this for?"
             {...register("note")}
-            className={`${inputClass}`}
+            className={`${inputClass} col-span-2`}
           />
           <input
-            placeholder="Location (optional)"
+            placeholder="Where? (optional)"
             {...register("location")}
             list="location-suggestions"
-            className={`${inputClass}`}
+            className={`${inputClass} col-span-2`}
           />
           <datalist id="location-suggestions">
             {LOCATION_SUGGESTIONS.map(loc => (
