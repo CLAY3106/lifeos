@@ -39,6 +39,18 @@ class JobResponse(BaseModel):
     application_url: Optional[str] = None
     deadline: Optional[date] = None
     created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class JobStatusHistoryResponse(BaseModel):
+    id: UUID
+    job_id: UUID
+    user_id: UUID
+    from_status: JobStatus
+    to_status: JobStatus
+    changed_at: datetime
 
     class Config:
         from_attributes = True

@@ -1,10 +1,13 @@
 import uuid
+import logging
 from datetime import timedelta
 from sqlalchemy.orm import Session
-from app.models.job import JobApplication, JobStatus
+from app.models.job import JobApplication, JobStatus, JobStatusHistory, VALID_TRANSITIONS
 from app.models.user import User
 from app.schemas.job import JobCreate, JobUpdate
 from app.services.activity_log_service import log_activity
+
+logger = logging.getLogger(__name__)
 
 
 def create_job(db: Session, user: User, data: JobCreate) -> JobApplication:
@@ -51,6 +54,25 @@ def update_job(db: Session, user: User, job_id: uuid.UUID, data: JobUpdate) -> J
 
 def update_job_status(db: Session, user: User, job_id: uuid.UUID, status: JobStatus) -> JobApplication:
     job = get_job(db, user, job_id)
+    old_status = job.status
+
+    # Soft validation: log warning but allow update anyway
+    if old_status != status and status not in VALID_TRANSITIONS.get(old_status, []):
+        logger.warning(
+            f"Invalid transition: {old_status.value} -> {status.value} for job {job_id}"
+        )
+
+    # Record the transition in event history
+    if old_status != status:
+        history = JobStatusHistory(
+            id=uuid.uuid4(),
+            job_id=job.id,
+            user_id=user.id,
+            from_status=old_status,
+            to_status=status,
+        )
+        db.add(history)
+
     job.status = status
     db.commit()
     db.refresh(job)

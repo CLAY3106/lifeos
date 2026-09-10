@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models.job import JobApplication
-from app.schemas.job import JobCreate, JobUpdate, JobResponse
+from app.models.job import JobApplication, JobStatusHistory
+from app.schemas.job import JobCreate, JobUpdate, JobResponse, JobStatusHistoryResponse
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.services import jobs_service
@@ -38,6 +38,18 @@ def get_job(
         return jobs_service.get_job(db, current_user, job_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+@router.get("/{job_id}/history", response_model=List[JobStatusHistoryResponse])
+def get_job_history(
+    job_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    history = db.query(JobStatusHistory).filter(
+        JobStatusHistory.job_id == job_id,
+        JobStatusHistory.user_id == current_user.id
+    ).order_by(JobStatusHistory.changed_at).all()
+    return history
 
 @router.patch("/{job_id}", response_model=JobResponse)
 def update_job(
