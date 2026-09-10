@@ -22,6 +22,7 @@ from app.models.assignment import Assignment, AssignmentStatus
 from app.models.job import JobApplication, JobStatus
 from app.models.workout import Workout
 from app.models.expense import Expense
+from app.services.expenses_service import get_period_bounds
 from datetime import datetime, timezone, timedelta
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -46,7 +47,7 @@ def get_dashboard(
     """
     now = datetime.now(timezone.utc)
     week_from_now = now + timedelta(days=7)
-    start_of_month = now.replace(day=1, hour=0, minute=0, second=0)
+    month_start, month_end = get_period_bounds("month")
 
     # Get upcoming assignments (pending, due within 7 days)
     upcoming_assignments = db.query(Assignment).filter(
@@ -75,10 +76,11 @@ def get_dashboard(
     if last_workout and last_workout.logged_at:
         days_since_workout = (now - last_workout.logged_at.replace(tzinfo=timezone.utc)).days
 
-    # Calculate monthly spending
+    # Calculate monthly spending (uses same period bounds as finance page)
     monthly_expenses = db.query(Expense).filter(
         Expense.user_id == current_user.id,
-        Expense.spent_at >= start_of_month
+        Expense.spent_at >= month_start,
+        Expense.spent_at < month_end
     ).all()
 
     total_spent = sum(e.amount for e in monthly_expenses)
