@@ -348,16 +348,14 @@ export default function FinancePage() {
         <button
           onClick={async () => {
             const demoExpenses = [
-              { amount: 45.50, category: "food", note: "Groceries", location: "In-store" },
-              { amount: 12.00, category: "food", note: "Lunch", location: "Restaurant" },
-              { amount: 25.00, category: "transport", note: "Metro card", location: "Public Transportation" },
-              { amount: 85.00, category: "study", note: "Textbook", location: "Online" },
-              { amount: 35.00, category: "fitness", note: "Gym membership", location: "In-store" },
-              { amount: 15.00, category: "other", note: "Coffee with friends", location: "Restaurant" },
-              { amount: 60.00, category: "food", note: "Weekly groceries", location: "In-store" },
-              { amount: 20.00, category: "transport", note: "Uber ride", location: "Online" },
-              { amount: 50.00, category: "study", note: "Course materials", location: "Campus" },
-              { amount: 30.00, category: "fitness", note: "Protein powder", location: "Online" },
+              { amount: 42.50, category: "food", group_override: "needs", note: "Weekly groceries", location: "In-store" },
+              { amount: 8.50, category: "transport", group_override: "needs", note: "Metro card reload", location: "Public Transportation" },
+              { amount: 65.00, category: "study", group_override: "needs", note: "CS textbook", location: "Online" },
+              { amount: 35.00, category: "food", group_override: "wants", note: "Dinner with friends", location: "Restaurant" },
+              { amount: 14.00, category: "food", group_override: "wants", note: "Coffee shop study session", location: "Restaurant" },
+              { amount: 25.00, category: "fitness", group_override: "wants", note: "Day pass — different gym", location: "In-store" },
+              { amount: 18.00, category: "transport", group_override: "wants", note: "Uber to party", location: "Online" },
+              { amount: 22.00, category: "other", group_override: "wants", note: "Concert tickets", location: "Online" },
             ]
             for (const exp of demoExpenses) {
               await api.post("/expenses", exp)
