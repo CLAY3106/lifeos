@@ -35,6 +35,7 @@ const expenseSchema = z.object({
     return !isNaN(num) && num > 0 && num <= 10000
   }, "Must be between $0.01 and $10,000"),
   category: z.string().min(1, "Category is required"),
+  group: z.string().optional(),
   note: z.string().optional(),
   location: z.string().optional(),
 })
@@ -96,6 +97,7 @@ export default function FinancePage() {
     await api.post("/expenses", {
       amount: parseFloat(values.amount),
       category: values.category,
+      group_override: values.group || undefined,
       note: values.note || undefined,
       location: values.location || undefined,
     })
@@ -302,6 +304,11 @@ export default function FinancePage() {
             {CATEGORIES.map(c => (
               <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
             ))}
+          </select>
+          <select {...register("group")} className={`${inputClass} cursor-pointer`}>
+            <option value="">Auto (default)</option>
+            <option value="needs">Need</option>
+            <option value="wants">Want</option>
           </select>
           <input
             placeholder="Note (optional)"
