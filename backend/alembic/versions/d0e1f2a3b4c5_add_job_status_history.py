@@ -22,8 +22,8 @@ def upgrade() -> None:
         sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column('job_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('job_applications.id'), nullable=False),
         sa.Column('user_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('users.id'), nullable=False),
-        sa.Column('from_status', sa.Enum('applied', 'oa', 'interview_scheduled', 'offer', 'rejected', 'dropped', name='jobstatus', create_type=False), nullable=False),
-        sa.Column('to_status', sa.Enum('applied', 'oa', 'interview_scheduled', 'offer', 'rejected', 'dropped', name='jobstatus', create_type=False), nullable=False),
+        sa.Column('from_status', jobstatus_enum, nullable=False),
+        sa.Column('to_status', jobstatus_enum, nullable=False),
         sa.Column('changed_at', sa.DateTime(), nullable=False),
     )
     op.create_index('ix_job_status_history_job_id', 'job_status_history', ['job_id'])
