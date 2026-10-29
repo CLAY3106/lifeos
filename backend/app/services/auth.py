@@ -21,6 +21,9 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 import os
 
+# Load .env before reading JWT_SECRET (must stay above the os.environ call)
+import app.config  # noqa: F401
+
 # Configuration — JWT_SECRET must be set in environment
 SECRET_KEY = os.environ.get("JWT_SECRET")
 if not SECRET_KEY:

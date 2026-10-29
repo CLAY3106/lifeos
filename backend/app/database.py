@@ -20,6 +20,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 
+# Load .env before reading DATABASE_URL (must stay above the os.getenv call)
+import app.config  # noqa: F401
+
 # Database URL from environment variable (defaults to local PostgreSQL)
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/lifeos")
 

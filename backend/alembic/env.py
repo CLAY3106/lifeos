@@ -1,6 +1,9 @@
 from logging.config import fileConfig
 import os
 
+# Load .env before reading DATABASE_URL (must stay above the os.getenv call)
+import app.config  # noqa: F401
+
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
@@ -29,6 +32,7 @@ from app.models.expense import Expense
 from app.models.ai_insight import AIInsight
 from app.models.routine import Routine, RoutineItem
 from app.models.ai_usage_log import AIUsageLog
+from app.models.document_chunk import DocumentChunk
 
 target_metadata = Base.metadata
 

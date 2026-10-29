@@ -8,6 +8,8 @@ python-jose[cryptography]
 passlib[bcrypt]
 bcrypt==4.0.1
 anthropic
+openai
+python-dotenv
 slowapi
 structlog
 pytest

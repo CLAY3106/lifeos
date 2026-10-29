@@ -21,10 +21,10 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.create_table(
         'document_chunks',
-        sa.Column('id', sa.UUID(), primary_key=True),
-        sa.Column('user_id', sa.UUID(), sa.ForeignKey('users.id'), nullable=False),
+        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column('user_id', postgresql.UUID(as_uuid=True), sa.ForeignKey('users.id'), nullable=False),
         sa.Column('entity_type', sa.String(), nullable=False),
-        sa.Column('entity_id', sa.UUID(), nullable=False),
+        sa.Column('entity_id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('content', sa.Text(), nullable=False),
         sa.Column('embedding', sa.Text(), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=True),
@@ -37,4 +37,3 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table('document_chunks')
-    # ### end Alembic commands ###

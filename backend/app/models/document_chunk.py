@@ -39,6 +39,12 @@ class DocumentChunk(Base, TimestampMixin):
     - embedding: Vector representation for semantic search (JSON text)
     - search_vector: Full-text search vector for BM25 keyword search
 
+    NOTE: `search_vector` is NOT mapped on this model on purpose. It is a
+    PostgreSQL generated column added by migration d61103f54e33, and tests run
+    on SQLite (which has no tsvector type). Search code queries it with raw SQL
+    only when the dialect is PostgreSQL. Do not add it to the model unless the
+    test database is switched to PostgreSQL.
+
     The search_vector column is auto-maintained by PostgreSQL via a generated
     column expression. The embedding column is updated by the embedding pipeline
     on INSERT/UPDATE.
