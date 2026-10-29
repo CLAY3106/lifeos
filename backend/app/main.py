@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from app.routers import auth, assignments, jobs, workouts, expenses, dashboard, ai, routines, activity
+from app.routers import auth, assignments, jobs, workouts, expenses, dashboard, ai, routines, activity, rag
 from app.database import check_db_connection
 from app.logger import logger
 import uuid
@@ -101,6 +101,7 @@ app.include_router(dashboard.router)
 app.include_router(ai.router)
 app.include_router(routines.router)
 app.include_router(activity.router)
+app.include_router(rag.router)
 
 
 @app.get("/health")
