@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.services.auth import decode_token
 from app.models.user import User
+import uuid
 
 
 def get_current_user(
@@ -53,9 +54,15 @@ def get_current_user(
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     
-    # Extract user ID from token payload
-    user_id = payload.get("sub")
-    if not user_id:
+    # Extract user ID from token payload.
+    # JWT claims are strings; convert back to UUID so the value matches the
+    # UUID-typed primary key on every SQLAlchemy version (2.x calls .hex on it).
+    raw_user_id = payload.get("sub")
+    if not raw_user_id:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+    try:
+        user_id = uuid.UUID(str(raw_user_id))
+    except (ValueError, TypeError):
         raise HTTPException(status_code=401, detail="Invalid token payload")
     
     # Look up the user in the database
