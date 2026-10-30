@@ -104,6 +104,12 @@ app.include_router(activity.router)
 app.include_router(rag.router)
 
 
+@app.get("/")
+def root():
+    """API root — friendly response for humans and health checks."""
+    return {"status": "ok", "service": "LifeOS API", "docs": "/docs"}
+
+
 @app.get("/health")
 def health():
     """Basic health check endpoint."""
