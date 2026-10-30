@@ -113,10 +113,9 @@ export default function DashboardPage() {
                 onClick={() => {
                   refreshAI(
                     () => api.post("/ai/refresh").then(r => r.data),
-                    {
-                      revalidate: false,
-                      onError: () => toast.error("Rate limited — try again later"),
-                    }
+                    { revalidate: false }
+                  ).catch(() =>
+                    toast.error("Rate limited — try again later")
                   )
                 }}
                 className="inline-flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-1"
@@ -183,8 +182,11 @@ export default function DashboardPage() {
                   <span className="text-right">Due</span>
                 </div>
                 {data.assignments.upcoming.map((a: any, i: number) => {
+                  // Relative due labels intentionally use the current time on
+                  // each render; this is a display-only value, not state.
+                  const nowMs = Date.now() // eslint-disable-line react-hooks/purity
                   const days = Math.ceil(
-                    (new Date(a.due_date).getTime() - Date.now()) / 86400000
+                    (new Date(a.due_date).getTime() - nowMs) / 86400000
                   )
                   const urgent = days <= 2
                   const dueLabel =

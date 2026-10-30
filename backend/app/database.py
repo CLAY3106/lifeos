@@ -26,13 +26,17 @@ import app.config  # noqa: F401
 # Database URL from environment variable (defaults to local PostgreSQL)
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/lifeos")
 
+# Seconds to wait for a connection. Neon suspends idle computes and can take
+# >10s to wake, so the default is intentionally generous.
+DB_CONNECT_TIMEOUT = int(os.getenv("DB_CONNECT_TIMEOUT", "30"))
+
 # Create engine with connection pooling and health checks
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,      # Check connections before use (prevents stale connections)
     pool_recycle=300,         # Recycle connections after 300 seconds (prevents timeout)
     pool_timeout=10,          # Timeout after 10 seconds if no connections available
-    connect_args={"connect_timeout": 10},  # Timeout after 10 seconds if can't connect
+    connect_args={"connect_timeout": DB_CONNECT_TIMEOUT},
 )
 
 # Session factory — creates new sessions for each request

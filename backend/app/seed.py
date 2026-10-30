@@ -257,4 +257,7 @@ def reset_and_seed():
 
 
 if __name__ == "__main__":
-    reset_and_seed()
+    # Idempotent: skips if the demo user already exists. This is what
+    # entrypoint.sh runs on every boot, so it must never wipe data.
+    # Use reset_and_seed() manually when you intentionally want a fresh demo.
+    seed()
