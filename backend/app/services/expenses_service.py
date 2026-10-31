@@ -55,7 +55,7 @@ def get_period_bounds(period: str) -> tuple[date, date]:
     Raises:
         ValueError: If period is not one of the valid options
     """
-    today = date.today()
+    today = datetime.now(timezone.utc).date()  # match spent_at, which is stored in UTC
     
     if period == "week":
         # Start = Monday of this week, End = Monday of next week
