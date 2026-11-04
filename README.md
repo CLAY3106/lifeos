@@ -24,7 +24,7 @@ Built as a portfolio project to demonstrate full-stack, cloud, and AI engineerin
 | Job hunt tracker | Kanban pipeline — Applied → OA → Interview → Offer, pipeline progress circles | **Endowed Progress** — visual progress through hiring stages |
 | Workout log | Quick-add sessions, routines with exercises, streak counter, weekly volume chart, link workouts to routines | — |
 | Finance tracker | Envelope budgeting (50/30/20), transactions with search, location tracking, Chart.js breakdown | **Mental Accounting** — 50% needs / 30% wants / 20% savings |
-| AI daily briefing | Cross-domain insight — top 3 priorities (numbered cards), summary toggle, flags overload, notices tensions | **Paradox of Choice** — AI reduces 4 domains to 3 actionable items |
+| AI daily briefing | **RAG-grounded** cross-domain insight — deterministic scoring picks the top 3 priorities, hybrid retrieval supplies the evidence, Claude writes the phrasing. Shows retrieval sources and falls back to scoring if AI is down | **Paradox of Choice** — AI reduces 4 domains to 3 actionable items |
 | Activity log | Automatic tracking of workouts, expenses, assignments, job changes | — |
 | Profile | View account info, budget settings, weekly capacity | — |
 
@@ -39,10 +39,11 @@ Built as a portfolio project to demonstrate full-stack, cloud, and AI engineerin
 | Forms | React Hook Form + Zod v4 | Type-safe validation |
 | Charts | Chart.js + react-chartjs-2 | Doughnut, bar charts for finance and fitness |
 | Backend | FastAPI (Python 3.11) | Async, auto Swagger docs, Pydantic built-in |
-| Database | PostgreSQL 15 on Render | Reliable, free tier, same network as API |
+| Database | PostgreSQL 18 on Neon (serverless) | Autoscaling compute, branching, generous free tier |
 | ORM | SQLAlchemy + Alembic | Schema migrations, ORM queries |
 | Auth | JWT (cookies) + bcrypt | Stateless, httpOnly cookies, SameSite=none |
-| AI | Claude (Anthropic) | Cross-domain reasoning, cached in DB |
+| AI generation | Claude Haiku (Anthropic) | Cross-domain reasoning, cached in DB |
+| Retrieval | OpenAI embeddings + PostgreSQL FTS, fused with RRF | Semantic + keyword search; degrades to keyword-only when embeddings are unavailable |
 | Frontend hosting | Vercel | Zero config, auto-deploys, global CDN |
 | Backend hosting | Render.com | Free HTTPS, Docker support, auto-deploys |
 | CI/CD | GitHub Actions | Auto deploy on push to main |
@@ -96,10 +97,14 @@ lifeos/
 │       │   ├── routines.py         # CRUD + nested items
 │       │   ├── dashboard.py
 │       │   ├── ai.py               # JSON-structured briefing
+│       │   ├── rag.py              # POST /rag/ingest, POST /rag/search
 │       │   └── activity.py         # GET /activity
 │       └── services/
 │           ├── auth.py
-│           ├── context_builder.py  # AI signal aggregation
+│           ├── scoring.py          # Deterministic urgency rubric
+│           ├── embedding.py        # OpenAI vectors + circuit breaker
+│           ├── rag.py              # Chunking, ingestion, hybrid search + RRF
+│           ├── context_builder.py  # Aggregates + retrieved evidence
 │           ├── assignments_service.py
 │           ├── expenses_service.py
 │           ├── workouts_service.py
@@ -141,10 +146,18 @@ Browser (Vercel frontend)
       ↓ /api/* (Vercel rewrites proxy)
 Render.com (FastAPI + Docker)
       ↓ SQLAlchemy ORM
-Render PostgreSQL (9 tables)
+Neon PostgreSQL (12 tables)
 
-FastAPI → Anthropic Claude (cached in ai_insights table)
-GitHub  → GitHub Actions → Render deploy + Vercel deploy
+Briefing pipeline:
+  scoring.py ──► top signals ──► retrieval query
+                                      ↓
+                     document_chunks (vector + BM25 → RRF)
+                                      ↓
+                     context_builder (aggregates + evidence)
+                                      ↓
+                     Claude ──► grounded priorities ──► ai_insights (6h cache)
+
+GitHub → GitHub Actions → Render deploy + Vercel deploy
 ```
 
 **Why Vercel rewrites?**
@@ -154,19 +167,24 @@ The frontend (`lifeos-lac.vercel.app`) and backend (`lifeos-zggd.onrender.com`) 
 
 ## Database Schema
 
-9 tables. All tables have `created_at` and `updated_at` timestamps. All tables except `users` have a `user_id` foreign key. All primary keys are UUIDs.
+12 tables. All tables have `created_at` and `updated_at` timestamps. All tables except `users` have a `user_id` foreign key. All primary keys are UUIDs.
 
 ```
 users              — id, email, hashed_password, name, monthly_budget, weekly_capacity_hours
 assignments        — id, user_id, title, course, due_date, estimated_hours, status, deleted_at
 job_applications   — id, user_id, company, role, applied_date, status, followup_date, notes
+job_status_history — id, job_id, from_status, to_status, changed_at, notes
 workouts           — id, user_id, routine_id (nullable FK), type, duration_mins, notes, logged_at
 routines           — id, user_id, name
 routine_items      — id, routine_id (FK cascade), exercise_name, sets, reps, duration_mins, day_of_week
 expenses           — id, user_id, amount, category, note, location, spent_at, group_override
 ai_insights        — id, user_id, type, content, generated_at
+ai_usage_log       — id, user_id, endpoint, model, input_tokens, output_tokens, cost, latency
+document_chunks    — id, user_id, entity_type, entity_id, content, embedding, search_vector
 activity_logs      — id, user_id, action, entity_type, entity_id, details, created_at
 ```
+
+`document_chunks.search_vector` is a PostgreSQL generated `tsvector` column used by BM25 ranking. It is deliberately unmapped in SQLAlchemy so the SQLite test suite still works; search code references it only through raw SQL on PostgreSQL.
 
 ---
 
@@ -228,9 +246,15 @@ activity_logs      — id, user_id, action, entity_type, entity_id, details, cre
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | `/dashboard` | Aggregate summary across all modules |
-| POST | `/ai/briefing` | AI daily insight (JSON-structured: priorities + summary) |
+| POST | `/ai/briefing` | RAG-grounded daily insight (priorities + summary + retrieval metadata) |
 | POST | `/ai/weekly` | Weekly digest |
 | POST | `/ai/refresh` | Force regenerate |
+
+### RAG (retrieval index)
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/rag/ingest` | Rebuild the authenticated user's search index |
+| POST | `/rag/search` | Hybrid search (vector + BM25 → RRF); keyword-only if embeddings are unavailable |
 
 ### Activity
 | Method | Endpoint | Description |
@@ -281,6 +305,8 @@ Key technical decisions documented with full context and tradeoffs:
 - [ADR-002](docs/adr/ADR-002-multi-user-auth.md) — Multi-user auth from day 1
 - [ADR-003](docs/adr/ADR-003-cache-ai-responses.md) — Cache AI responses in database
 - [ADR-004](docs/adr/ADR-004-vercel-aws-eb.md) — Vercel + AWS Elastic Beanstalk (original)
+- [ADR-005](docs/adr/ADR-005-event-sourcing-jobs.md) — Event sourcing for job status changes
+- [ADR-006](docs/adr/ADR-006-rag-grounded-briefing.md) — Ground the AI briefing in retrieved records
 
 ---
 

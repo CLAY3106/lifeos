@@ -46,9 +46,30 @@ import re
 router = APIRouter(prefix="/ai", tags=["ai"])
 limiter = Limiter(key_func=get_remote_address)
 
-# Initialize Anthropic client — None if API key not set (triggers fallback mode)
+# Initialize Anthropic client — None if API key not set (triggers fallback mode).
+# A timeout prevents a stalled provider call from holding a request open;
+# one retry covers transient connection errors without multiplying latency.
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY and ANTHROPIC_API_KEY != "your-anthropic-key" else None
+client = (
+    anthropic.Anthropic(
+        api_key=ANTHROPIC_API_KEY,
+        timeout=20.0,
+        max_retries=1,
+    )
+    if ANTHROPIC_API_KEY and ANTHROPIC_API_KEY != "your-anthropic-key"
+    else None
+)
+
+# Shared grounding contract for every AI-generated insight. The model writes
+# prose; it does not get to invent facts. Retrieved records are verbatim rows
+# from the user's own data, so specifics must come from there.
+GROUNDING_RULES = """
+Grounding rules:
+- The context's "retrieved_records" are verbatim records from the user's own data.
+- Use them for specifics (titles, companies, amounts, dates). Never invent records, numbers, or deadlines.
+- If "retrieved_records" is empty, rely on the aggregate fields and stay general.
+- Never mention the context format, JSON, or retrieval process to the user.
+"""
 
 # Prompt for daily briefing — asks for JSON with priorities and summary
 DAILY_PROMPT = """You are a personal life coach for a college student.
@@ -90,7 +111,7 @@ def get_cached_insight(db: Session, user_id, insight_type: InsightType):
     ).first()
 
 
-def parse_briefing(content: str, generated_at, cached: bool = True, scores: list = None):
+def parse_briefing(content: str, generated_at, cached: bool = True, scores: list = None, retrieval: dict = None):
     """
     Parse AI response into structured format.
     
@@ -100,6 +121,7 @@ def parse_briefing(content: str, generated_at, cached: bool = True, scores: list
     
     The scores parameter adds deterministic scoring metadata to the response,
     regardless of whether the AI or fallback generated the priorities.
+    The retrieval parameter reports which records grounded the generation.
     """
     # Strip markdown code fences if present (AI sometimes wraps JSON in ```json ... ```)
     cleaned = content.strip()
@@ -113,6 +135,7 @@ def parse_briefing(content: str, generated_at, cached: bool = True, scores: list
             "priorities": data.get("priorities", []),
             "summary": data.get("summary", ""),
             "scores": scores or [],
+            "retrieval": retrieval,
             "cached": cached,
             "generated_at": generated_at,
         }
@@ -122,9 +145,20 @@ def parse_briefing(content: str, generated_at, cached: bool = True, scores: list
             "priorities": [],
             "summary": content,
             "scores": scores or [],
+            "retrieval": retrieval,
             "cached": cached,
             "generated_at": generated_at,
         }
+
+
+def summarize_retrieval(context: dict) -> dict:
+    """Compact retrieval metadata for the API response (not sent to the model)."""
+    records = context.get("retrieved_records", [])
+    return {
+        "chunks": len(records),
+        "query": context.get("retrieval_query", ""),
+        "sources": sorted({record["type"] for record in records}),
+    }
 
 
 def generate_fallback_briefing(db: Session, user: User):
@@ -173,39 +207,66 @@ def generate_fallback_briefing(db: Session, user: User):
         "priorities": priorities,
         "summary": summary,
         "scores": [{"domain": s.domain, "score": s.score, "title": s.title} for s in signals[:5]],
+        "retrieval": None,
         "cached": False,
         "generated_at": now,
     }
 
 
-def generate_insight(db: Session, user: User, insight_type: InsightType, prompt: str) -> AIInsight:
+def generate_insight(
+    db: Session,
+    user: User,
+    insight_type: InsightType,
+    prompt: str,
+    signals: list = None,
+) -> tuple[AIInsight, dict]:
     """
     Generate an AI insight using Claude and persist it to the database.
     
     This function:
-    1. Builds context from the user's data (assignments, jobs, workouts, expenses)
+    1. Builds context from the user's data (aggregates + RAG-retrieved records)
     2. Sends the context + prompt to Claude
     3. Logs token usage and latency
     4. Persists the insight to ai_insights table
     5. Persists usage stats to ai_usage_log table
+
+    Provider failures are translated to ValueError so every caller can fall
+    back to the deterministic briefing instead of returning a 500.
+
+    Returns:
+        (insight, context) — context is returned so the route can report
+        retrieval metadata without querying the index twice.
     """
     if not client:
         raise ValueError("AI service not configured. Set a valid ANTHROPIC_API_KEY.")
 
-    context = build_context(db, user)
+    context = build_context(db, user, signals=signals)
+    # JSON, not Python repr: the model gets a stable, parseable structure and
+    # non-JSON types (datetimes, Decimals) are stringified explicitly.
+    context_json = json.dumps(context, default=str)
     start_time = time.time()
 
     # Call Claude API with the prompt and context
-    message = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=300,
-        messages=[
-            {
-                "role": "user",
-                "content": f"{prompt}\n\nContext:\n{context}"
-            }
-        ]
-    )
+    try:
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=300,
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"{prompt}\n\n{GROUNDING_RULES}\n\nContext:\n{context_json}"
+                }
+            ]
+        )
+    except anthropic.APIError as exc:
+        logger.error(
+            "ai_call_failed",
+            user_id=str(user.id),
+            insight_type=insight_type.value,
+            error_type=type(exc).__name__,
+            error=str(exc)[:200],
+        )
+        raise ValueError("AI service unavailable") from exc
 
     # Calculate latency and token usage for monitoring
     latency_ms = round((time.time() - start_time) * 1000)
@@ -223,8 +284,16 @@ def generate_insight(db: Session, user: User, insight_type: InsightType, prompt:
         output_tokens=output_tokens,
         estimated_cost_usd=estimated_cost,
         latency_ms=latency_ms,
+        retrieval_chunks=len(context.get("retrieved_records", [])),
         cached=False
     )
+
+    content = "".join(
+        block.text for block in message.content
+        if getattr(block, "type", "") == "text"
+    )
+    if not content:
+        raise ValueError("AI returned an empty response")
 
     # Persist usage to ai_usage_log table (for cost tracking dashboard)
     usage_log = AIUsageLog(
@@ -240,8 +309,6 @@ def generate_insight(db: Session, user: User, insight_type: InsightType, prompt:
     )
     db.add(usage_log)
 
-    content = message.content[0].text
-
     # Persist the insight content for caching (6-hour TTL)
     insight = AIInsight(
         id=uuid.uuid4(),
@@ -253,7 +320,7 @@ def generate_insight(db: Session, user: User, insight_type: InsightType, prompt:
     db.add(insight)
     db.commit()
     db.refresh(insight)
-    return insight
+    return insight, context
 
 
 @router.post("/briefing")
@@ -285,9 +352,17 @@ def get_briefing(
         return generate_fallback_briefing(db, current_user)
 
     try:
-        insight = generate_insight(db, current_user, InsightType.daily, DAILY_PROMPT)
-        return parse_briefing(insight.content, insight.generated_at, cached=False, scores=scores)
-    except ValueError as e:
+        insight, context = generate_insight(
+            db, current_user, InsightType.daily, DAILY_PROMPT, signals=signals
+        )
+        return parse_briefing(
+            insight.content,
+            insight.generated_at,
+            cached=False,
+            scores=scores,
+            retrieval=summarize_retrieval(context),
+        )
+    except ValueError:
         return generate_fallback_briefing(db, current_user)
 
 
@@ -305,10 +380,15 @@ def get_weekly(
         return {"content": cached.content, "cached": True, "generated_at": cached.generated_at}
 
     try:
-        insight = generate_insight(db, current_user, InsightType.weekly, WEEKLY_PROMPT)
+        # Weekly digests benefit from the same grounding: current signals are
+        # the best available proxy for what the week's evidence should cover.
+        signals = score_signals(db, current_user)
+        insight, _ = generate_insight(
+            db, current_user, InsightType.weekly, WEEKLY_PROMPT, signals=signals
+        )
         return {"content": insight.content, "cached": False, "generated_at": insight.generated_at}
-    except ValueError as e:
-        return {"content": str(e), "cached": False, "generated_at": None}
+    except ValueError:
+        return {"content": "AI service unavailable", "cached": False, "generated_at": None}
 
 
 @router.post("/refresh")
@@ -325,7 +405,15 @@ def refresh_briefing(
         return generate_fallback_briefing(db, current_user)
 
     try:
-        insight = generate_insight(db, current_user, InsightType.daily, DAILY_PROMPT)
-        return parse_briefing(insight.content, insight.generated_at, cached=False, scores=scores)
-    except ValueError as e:
+        insight, context = generate_insight(
+            db, current_user, InsightType.daily, DAILY_PROMPT, signals=signals
+        )
+        return parse_briefing(
+            insight.content,
+            insight.generated_at,
+            cached=False,
+            scores=scores,
+            retrieval=summarize_retrieval(context),
+        )
+    except ValueError:
         return generate_fallback_briefing(db, current_user)
