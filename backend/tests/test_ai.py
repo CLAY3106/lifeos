@@ -14,7 +14,7 @@ would have seen rather than on the model's own output.
 
 import json
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 
 import anthropic
 import httpx
@@ -22,8 +22,10 @@ import pytest
 
 from app.models.assignment import Assignment, AssignmentStatus
 from app.models.document_chunk import DocumentChunk
+from app.models.job import JobApplication, JobStatus
 from app.routers import ai as ai_router
 from app.services import embedding
+from app.services.scoring import score_signals
 
 
 class _FakeUsage:
@@ -175,6 +177,51 @@ def test_briefing_uses_fallback_without_ai_client(
     assert data["priorities"][0]["domain"] in {
         "assignment", "job", "fitness", "finance", "tension", "general"
     }
+
+
+def _overdue_job(demo_user):
+    """A job whose follow-up date (a DATE column) has already passed."""
+    today = datetime.now(timezone.utc).date()
+    return JobApplication(
+        id=uuid.uuid4(),
+        user_id=demo_user.id,
+        company="Acme",
+        role="SWE Intern",
+        applied_date=today - timedelta(days=10),
+        followup_date=today - timedelta(days=3),
+        status=JobStatus.applied,
+    )
+
+
+def test_score_signals_handles_date_followup(db_session, demo_user):
+    """
+    Regression: followup_date is a Date, not a DateTime.
+
+    Calling .replace(tzinfo=...) on a date raises TypeError, which 500'd the
+    briefing in production whenever a follow-up was overdue.
+    """
+    db_session.add(_overdue_job(demo_user))
+    db_session.commit()
+
+    signals = score_signals(db_session, demo_user)
+
+    job_signals = [s for s in signals if s.domain == "job"]
+    assert len(job_signals) == 1
+    assert job_signals[0].title == "Follow up: SWE Intern at Acme"
+    assert job_signals[0].meta["days_since_applied"] == 3
+
+
+def test_briefing_handles_overdue_followup_date(
+    client, demo_user, auth_headers, fake_ai, db_session
+):
+    db_session.add(_overdue_job(demo_user))
+    db_session.commit()
+
+    response = client.post("/ai/briefing", **auth_headers)
+
+    assert response.status_code == 200
+    prompt = fake_ai.messages.calls[0]["messages"][0]["content"]
+    assert "Follow up: SWE Intern at Acme" in prompt
 
 
 def test_embedding_circuit_breaker_stops_repeated_calls(monkeypatch):

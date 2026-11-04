@@ -28,7 +28,7 @@ from app.models.job import JobApplication, JobStatus
 from app.models.workout import Workout
 from app.models.expense import Expense
 from app.services.expenses_service import get_period_bounds, CATEGORY_TO_GROUP
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, time, timezone, timedelta
 
 
 @dataclass
@@ -133,7 +133,15 @@ def score_signals(db: Session, user: User) -> list[ScoredSignal]:
 
     # Fixed score of 60 — career impact but not as urgent as overdue assignments
     for job in overdue_followups:
-        days_since = (now - job.followup_date.replace(tzinfo=timezone.utc)).days
+        if not job.followup_date:
+            continue
+        # followup_date is a DATE column, so SQLAlchemy returns datetime.date.
+        # date.replace(tzinfo=...) does not exist — normalize to midnight UTC
+        # before subtracting from the aware `now`.
+        followup_at = datetime.combine(job.followup_date, time.min).replace(
+            tzinfo=timezone.utc
+        )
+        days_since = (now - followup_at).days
         signals.append(ScoredSignal(
             domain="job",
             title=f"Follow up: {job.role} at {job.company}",
