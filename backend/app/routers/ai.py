@@ -33,6 +33,7 @@ from app.models.ai_usage_log import AIUsageLog
 from app.services.context_builder import build_context
 from app.services.scoring import score_signals
 from app.logger import logger
+from app.services.ai_cost import BRIEFING_MODEL, estimate_cost_usd
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from datetime import datetime, timezone, timedelta
@@ -197,7 +198,7 @@ def generate_insight(db: Session, user: User, insight_type: InsightType, prompt:
 
     # Call Claude API with the prompt and context
     message = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model=BRIEFING_MODEL,
         max_tokens=300,
         messages=[
             {
@@ -211,8 +212,8 @@ def generate_insight(db: Session, user: User, insight_type: InsightType, prompt:
     latency_ms = round((time.time() - start_time) * 1000)
     input_tokens = message.usage.input_tokens
     output_tokens = message.usage.output_tokens
-    # Estimate cost: $0.25/1M input, $1.25/1M output (Claude Haiku pricing)
-    estimated_cost = round((input_tokens * 0.00000025) + (output_tokens * 0.00000125), 6)
+    # Priced from one table so the logged cost matches what Anthropic bills
+    estimated_cost = estimate_cost_usd(BRIEFING_MODEL, input_tokens, output_tokens)
 
     # Log to structured logging (for Render logs)
     logger.info(
@@ -231,7 +232,7 @@ def generate_insight(db: Session, user: User, insight_type: InsightType, prompt:
         id=uuid.uuid4(),
         user_id=user.id,
         endpoint=insight_type.value,
-        model="claude-haiku-4-5-20251001",
+        model=BRIEFING_MODEL,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         estimated_cost_usd=estimated_cost,
