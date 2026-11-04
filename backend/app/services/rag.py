@@ -220,6 +220,17 @@ def _vector_search(
     return scored[:candidate_limit]
 
 
+def _keyword_terms(query_text: str, limit: int = 16) -> list[str]:
+    """
+    Tokenize a query into alphanumeric terms for keyword search.
+
+    Shared by the PostgreSQL and SQLite paths so they agree on what a "term"
+    is. The cap keeps the generated SQL small for long briefing queries.
+    """
+    terms = re.findall(r"[a-z0-9]+", query_text.lower())
+    return [term for term in terms if len(term) > 1][:limit]
+
+
 def _keyword_search_fallback(
     db: Session,
     user_id,
@@ -233,7 +244,7 @@ def _keyword_search_fallback(
     Scores by the fraction of query terms present in the chunk. This exists so
     the same code path is exercised in tests; production uses PostgreSQL FTS.
     """
-    terms = [t for t in re.findall(r"[a-z0-9]+", query_text.lower()) if len(t) > 1]
+    terms = _keyword_terms(query_text)
     if not terms:
         return []
 
@@ -262,19 +273,37 @@ def _keyword_search(
     """
     Rank chunks with PostgreSQL full-text search (ts_rank_cd).
 
-    `plainto_tsquery` treats the input as plain text, so arbitrary user input
-    (quotes, punctuation, operators) can never produce a syntax error.
+    Each query term is parsed with `plainto_tsquery` (safe for arbitrary user
+    input) and the terms are OR-ed together with `||`. AND semantics — what a
+    single `plainto_tsquery` produces — is far too strict for retrieval: a
+    query built from three signals would require one chunk to contain every
+    word from all three, which never happens.
+
+    OR-ing keeps recall high; ts_rank_cd still ranks chunks that match more
+    terms (and rarer terms) above chunks that match one.
     """
     if db.get_bind().dialect.name != "postgresql":
         return _keyword_search_fallback(db, user_id, query_text, entity_types, candidate_limit)
 
-    sql = (
-        "select id, ts_rank_cd(search_vector, plainto_tsquery('english', :q)) as rank "
-        "from document_chunks "
-        "where user_id = :uid "
-        "and search_vector @@ plainto_tsquery('english', :q)"
+    # Alphanumeric terms only; this is both a tokenizer and a guard against
+    # tsquery syntax injection. Cap the count so the SQL stays small.
+    terms = _keyword_terms(query_text)
+    if not terms:
+        return []
+
+    combined_query = " || ".join(
+        f"plainto_tsquery('english', :t{i})" for i in range(len(terms))
     )
-    params = {"q": query_text, "uid": user_id, "lim": candidate_limit}
+    sql = (
+        f"with q as (select {combined_query} as query) "
+        "select id, ts_rank_cd(search_vector, q.query) as rank "
+        "from document_chunks, q "
+        "where user_id = :uid "
+        "and search_vector @@ q.query"
+    )
+    params = {f"t{i}": term for i, term in enumerate(terms)}
+    params["uid"] = user_id
+    params["lim"] = candidate_limit
 
     if entity_types:
         sql += " and entity_type in :types"
