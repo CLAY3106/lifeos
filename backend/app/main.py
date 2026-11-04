@@ -22,6 +22,7 @@ from slowapi.errors import RateLimitExceeded
 from app.routers import auth, assignments, jobs, workouts, expenses, dashboard, ai, routines, activity, rag
 from app.database import check_db_connection
 from app.logger import logger
+import os
 import uuid
 import time
 
@@ -107,7 +108,13 @@ app.include_router(rag.router)
 @app.get("/")
 def root():
     """API root — friendly response for humans and health checks."""
-    return {"status": "ok", "service": "LifeOS API", "docs": "/docs"}
+    return {
+        "status": "ok",
+        "service": "LifeOS API",
+        # Render injects the deployed commit; useful for verifying deploys.
+        "commit": os.getenv("RENDER_GIT_COMMIT", "dev")[:7],
+        "docs": "/docs",
+    }
 
 
 @app.get("/health")
