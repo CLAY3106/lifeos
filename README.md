@@ -25,6 +25,7 @@ Built as a portfolio project to demonstrate full-stack, cloud, and AI engineerin
 | Workout log | Quick-add sessions, routines with exercises, streak counter, weekly volume chart, link workouts to routines | — |
 | Finance tracker | Envelope budgeting (50/30/20), transactions with search, location tracking, Chart.js breakdown | **Mental Accounting** — 50% needs / 30% wants / 20% savings |
 | AI daily briefing | **RAG-grounded** cross-domain insight — deterministic scoring picks the top 3 priorities, hybrid retrieval supplies the evidence, Claude writes the phrasing. Shows retrieval sources and falls back to scoring if AI is down | **Paradox of Choice** — AI reduces 4 domains to 3 actionable items |
+| A/B testing | Deterministic SHA-256 bucketing, idempotent exposures, conversion events, and two-proportion z-test results. Live experiment `briefing_quick_complete` tests one-click assignment completion from the briefing | — |
 | Activity log | Automatic tracking of workouts, expenses, assignments, job changes | — |
 | Profile | View account info, budget settings, weekly capacity | — |
 
@@ -44,6 +45,7 @@ Built as a portfolio project to demonstrate full-stack, cloud, and AI engineerin
 | Auth | JWT (cookies) + bcrypt | Stateless, httpOnly cookies, SameSite=none |
 | AI generation | Claude Haiku (Anthropic) | Cross-domain reasoning, cached in DB |
 | Retrieval | OpenAI embeddings + PostgreSQL FTS, fused with RRF | Semantic + keyword search; degrades to keyword-only when embeddings are unavailable |
+| Experimentation | SHA-256 bucketing + two-proportion z-test | Deterministic assignment, exposure-based denominators, no external service |
 | Frontend hosting | Vercel | Zero config, auto-deploys, global CDN |
 | Backend hosting | Render.com | Free HTTPS, Docker support, auto-deploys |
 | CI/CD | GitHub Actions | Auto deploy on push to main |
@@ -79,6 +81,7 @@ lifeos/
 │       │   ├── routine.py          # routines + routine_items
 │       │   ├── ai_insight.py
 │       │   ├── ai_usage_log.py
+│       │   ├── experiment.py       # experiments + exposures + events
 │       │   └── activity_log.py
 │       ├── schemas/
 │       │   ├── user.py             # UserCreate, UserResponse, UserUpdate
@@ -87,6 +90,7 @@ lifeos/
 │       │   ├── workout.py
 │       │   ├── expense.py          # + location in response
 │       │   ├── routine.py
+│       │   ├── experiment.py       # assignment, event, results contracts
 │       │   └── activity_log.py
 │       ├── routers/
 │       │   ├── auth.py             # register, login, logout, me, patch me
@@ -96,8 +100,9 @@ lifeos/
 │       │   ├── expenses.py         # Returns {expenses, monthly_budget}
 │       │   ├── routines.py         # CRUD + nested items
 │       │   ├── dashboard.py
-│       │   ├── ai.py               # JSON-structured briefing
+│       │   ├── ai.py               # JSON-structured briefing + quick actions
 │       │   ├── rag.py              # POST /rag/ingest, POST /rag/search
+│       │   ├── experiments.py      # assignment, events, results
 │       │   └── activity.py         # GET /activity
 │       └── services/
 │           ├── auth.py
@@ -105,6 +110,7 @@ lifeos/
 │           ├── embedding.py        # OpenAI vectors + circuit breaker
 │           ├── rag.py              # Chunking, ingestion, hybrid search + RRF
 │           ├── context_builder.py  # Aggregates + retrieved evidence
+│           ├── experiments.py      # Bucketing, exposure, z-test
 │           ├── assignments_service.py
 │           ├── expenses_service.py
 │           ├── workouts_service.py
@@ -134,7 +140,8 @@ lifeos/
         │   ├── primitives.tsx
         │   └── skeletons.tsx       # Loading skeletons
         └── lib/
-            └── api.ts              # Axios client
+            ├── api.ts              # Axios client
+            └── useExperiment.ts    # Variant evaluation + conversion tracking
 ```
 
 ---
@@ -146,7 +153,7 @@ Browser (Vercel frontend)
       ↓ /api/* (Vercel rewrites proxy)
 Render.com (FastAPI + Docker)
       ↓ SQLAlchemy ORM
-Neon PostgreSQL (12 tables)
+Neon PostgreSQL (15 tables)
 
 Briefing pipeline:
   scoring.py ──► top signals ──► retrieval query
@@ -157,31 +164,53 @@ Briefing pipeline:
                                       ↓
                      Claude ──► grounded priorities ──► ai_insights (6h cache)
 
+Experiment pipeline:
+  GET /experiments/:key ──► SHA-256 bucket ──► exposure (unique per user)
+                                      ↓
+                     variant ──► treatment UI ──► conversion event
+                                      ↓
+                     results ──► two-proportion z-test (lift, p-value, CI)
+
 GitHub → GitHub Actions → Render deploy + Vercel deploy
 ```
 
 **Why Vercel rewrites?**
 The frontend (`lifeos-lac.vercel.app`) and backend (`lifeos-zggd.onrender.com`) are on different domains. Cross-domain cookies require `SameSite=none` but browsers still restrict them in some cases. Vercel rewrites proxy all `/api/*` requests through Vercel itself, making the browser think everything is on the same domain — no cross-domain cookie issues.
 
+### A/B testing design
+
+The framework separates three concerns:
+
+1. **Assignment** — `SHA-256(experiment_key:user_id) % 10,000` selects a bucket. It is stable across deploys, devices, and reloads, and the experiment key makes assignments independent per test.
+2. **Exposure** — a unique `(experiment_id, user_id)` row records the first time a user saw the variant. Reloads cannot inflate the denominator.
+3. **Conversion** — immutable event rows. Results count distinct converted users and ignore events before exposure, so repeated actions do not inflate the numerator.
+
+The results endpoint reports conversion rate, relative lift, absolute lift, a 95% confidence interval, a two-sided p-value from a two-proportion z-test, and a sample-size warning below 30 exposures per arm. See [ADR-007](docs/adr/ADR-007-deterministic-ab-testing.md) for the statistical choices and limitations.
+
+The live experiment, `briefing_quick_complete`, tests whether one-click **Mark done** actions in the briefing increase completed assignments. Control users see the normal briefing; treatment users also see quick actions derived from the same deterministic scores.
+
 ---
 
 ## Database Schema
 
-12 tables. All tables have `created_at` and `updated_at` timestamps. All tables except `users` have a `user_id` foreign key. All primary keys are UUIDs.
+15 tables. All tables have `created_at` and `updated_at` timestamps. All tables except `users` and `experiments` have a `user_id` foreign key. All primary keys are UUIDs.
 
 ```
-users              — id, email, hashed_password, name, monthly_budget, weekly_capacity_hours
-assignments        — id, user_id, title, course, due_date, estimated_hours, status, deleted_at
-job_applications   — id, user_id, company, role, applied_date, status, followup_date, notes
-job_status_history — id, job_id, from_status, to_status, changed_at, notes
-workouts           — id, user_id, routine_id (nullable FK), type, duration_mins, notes, logged_at
-routines           — id, user_id, name
-routine_items      — id, routine_id (FK cascade), exercise_name, sets, reps, duration_mins, day_of_week
-expenses           — id, user_id, amount, category, note, location, spent_at, group_override
-ai_insights        — id, user_id, type, content, generated_at
-ai_usage_log       — id, user_id, endpoint, model, input_tokens, output_tokens, cost, latency
-document_chunks    — id, user_id, entity_type, entity_id, content, embedding, search_vector
-activity_logs      — id, user_id, action, entity_type, entity_id, details, created_at
+users                — id, email, hashed_password, name, monthly_budget, weekly_capacity_hours
+assignments          — id, user_id, title, course, due_date, estimated_hours, status, deleted_at
+job_applications     — id, user_id, company, role, applied_date, status, followup_date, notes
+job_status_history   — id, job_id, from_status, to_status, changed_at, notes
+workouts             — id, user_id, routine_id (nullable FK), type, duration_mins, notes, logged_at
+routines             — id, user_id, name
+routine_items        — id, routine_id (FK cascade), exercise_name, sets, reps, duration_mins, day_of_week
+expenses             — id, user_id, amount, category, note, location, spent_at, group_override
+ai_insights          — id, user_id, type, content, generated_at
+ai_usage_log         — id, user_id, endpoint, model, input_tokens, output_tokens, cost, latency
+document_chunks      — id, user_id, entity_type, entity_id, content, embedding, search_vector
+experiments          — id, key (unique), name, description, status, variants (JSON), primary_metric, started_at, ended_at
+experiment_exposures — id, experiment_id, user_id, variant, first_exposed_at, UNIQUE(experiment_id, user_id)
+experiment_events    — id, experiment_id, user_id, variant, event_name, value, event_metadata, occurred_at
+activity_logs        — id, user_id, action, entity_type, entity_id, details, created_at
 ```
 
 `document_chunks.search_vector` is a PostgreSQL generated `tsvector` column used by BM25 ranking. It is deliberately unmapped in SQLAlchemy so the SQLite test suite still works; search code references it only through raw SQL on PostgreSQL.
@@ -256,6 +285,13 @@ activity_logs      — id, user_id, action, entity_type, entity_id, details, cre
 | POST | `/rag/ingest` | Rebuild the authenticated user's search index |
 | POST | `/rag/search` | Hybrid search (vector + BM25 → RRF); keyword-only if embeddings are unavailable |
 
+### Experiments
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/experiments/:key` | Evaluate the current user's variant and record exposure (idempotent) |
+| POST | `/experiments/:key/events` | Log a conversion event; variant is resolved server-side |
+| GET | `/experiments/:key/results` | Exposure/conversion rates, lift, 95% CI, and p-value |
+
 ### Activity
 | Method | Endpoint | Description |
 |---|---|---|
@@ -307,6 +343,7 @@ Key technical decisions documented with full context and tradeoffs:
 - [ADR-004](docs/adr/ADR-004-vercel-aws-eb.md) — Vercel + AWS Elastic Beanstalk (original)
 - [ADR-005](docs/adr/ADR-005-event-sourcing-jobs.md) — Event sourcing for job status changes
 - [ADR-006](docs/adr/ADR-006-rag-grounded-briefing.md) — Ground the AI briefing in retrieved records
+- [ADR-007](docs/adr/ADR-007-deterministic-ab-testing.md) — Deterministic A/B testing with exposure-based analysis
 
 ---
 

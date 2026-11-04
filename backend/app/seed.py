@@ -10,11 +10,55 @@ from app.models.routine import Routine, RoutineItem, RoutineDayOfWeek
 from app.models.activity_log import ActivityLog
 from app.models.ai_insight import AIInsight
 from app.models.ai_usage_log import AIUsageLog
+from app.models.experiment import (
+    Experiment,
+    ExperimentEvent,
+    ExperimentExposure,
+    ExperimentStatus,
+)
 from app.services.auth import hash_password
+
+
+def seed_experiments(db):
+    """
+    Seed the demo experiment idempotently.
+
+    This runs before the demo-user check in seed() because existing databases
+    already have a demo user — the early return would otherwise mean the
+    experiment is never created in production.
+    """
+    existing = db.query(Experiment).filter(
+        Experiment.key == "briefing_quick_complete"
+    ).first()
+    if existing:
+        return
+
+    db.add(Experiment(
+        id=uuid.uuid4(),
+        key="briefing_quick_complete",
+        name="Briefing quick actions",
+        description=(
+            "One-click assignment completion directly from the daily briefing. "
+            "Measures whether removing navigation friction increases completed work."
+        ),
+        status=ExperimentStatus.running,
+        variants=[
+            {"key": "control", "weight": 50},
+            {"key": "treatment", "weight": 50},
+        ],
+        primary_metric="quick_action_completed",
+        started_at=datetime.now(timezone.utc),
+    ))
+    db.commit()
+    print("Seeded experiment: briefing_quick_complete")
 
 
 def seed():
     db = SessionLocal()
+
+    # Experiments are global configuration, not per-user data, so seed them
+    # before the demo-user early return below.
+    seed_experiments(db)
 
     # Check if demo user already exists
     existing = db.query(User).filter(User.email == "demo@lifeos.app").first()
@@ -231,6 +275,8 @@ def reset_and_seed():
     user = db.query(User).filter(User.email == "demo@lifeos.app").first()
     if user:
         # Delete in order (foreign keys)
+        db.query(ExperimentEvent).filter(ExperimentEvent.user_id == user.id).delete()
+        db.query(ExperimentExposure).filter(ExperimentExposure.user_id == user.id).delete()
         db.query(ActivityLog).filter(ActivityLog.user_id == user.id).delete()
         db.query(AIUsageLog).filter(AIUsageLog.user_id == user.id).delete()
         db.query(AIInsight).filter(AIInsight.user_id == user.id).delete()

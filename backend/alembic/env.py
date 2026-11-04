@@ -33,6 +33,11 @@ from app.models.ai_insight import AIInsight
 from app.models.routine import Routine, RoutineItem
 from app.models.ai_usage_log import AIUsageLog
 from app.models.document_chunk import DocumentChunk
+from app.models.experiment import (
+    Experiment,
+    ExperimentEvent,
+    ExperimentExposure,
+)
 
 target_metadata = Base.metadata
 

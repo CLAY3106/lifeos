@@ -111,7 +111,7 @@ def get_cached_insight(db: Session, user_id, insight_type: InsightType):
     ).first()
 
 
-def parse_briefing(content: str, generated_at, cached: bool = True, scores: list = None, retrieval: dict = None):
+def parse_briefing(content: str, generated_at, cached: bool = True, scores: list = None, retrieval: dict = None, quick_actions: list = None):
     """
     Parse AI response into structured format.
     
@@ -122,6 +122,8 @@ def parse_briefing(content: str, generated_at, cached: bool = True, scores: list
     The scores parameter adds deterministic scoring metadata to the response,
     regardless of whether the AI or fallback generated the priorities.
     The retrieval parameter reports which records grounded the generation.
+    Quick actions are computed from scores, not from the model, so they remain
+    available on cached briefings and when AI is unavailable.
     """
     # Strip markdown code fences if present (AI sometimes wraps JSON in ```json ... ```)
     cleaned = content.strip()
@@ -136,6 +138,7 @@ def parse_briefing(content: str, generated_at, cached: bool = True, scores: list
             "summary": data.get("summary", ""),
             "scores": scores or [],
             "retrieval": retrieval,
+            "quick_actions": quick_actions or [],
             "cached": cached,
             "generated_at": generated_at,
         }
@@ -146,9 +149,44 @@ def parse_briefing(content: str, generated_at, cached: bool = True, scores: list
             "summary": content,
             "scores": scores or [],
             "retrieval": retrieval,
+            "quick_actions": quick_actions or [],
             "cached": cached,
             "generated_at": generated_at,
         }
+
+
+def build_quick_actions(signals: list, limit: int = 3) -> list:
+    """
+    Turn the top scored assignment signals into one-click actions.
+
+    Quick actions are deliberately derived from the same deterministic scores
+    as the briefing priorities. That keeps the treatment honest: the shortcut
+    completes the work the briefing already told the user to do, rather than
+    introducing a separate recommendation system.
+
+    Non-assignment signals are skipped because "complete" is only meaningful
+    for a concrete assignment row. Duplicate assignment IDs are removed.
+    """
+    actions = []
+    seen = set()
+    for signal in signals:
+        if signal.domain != "assignment":
+            continue
+        assignment_id = signal.meta.get("assignment_id")
+        if not assignment_id or assignment_id in seen:
+            continue
+        seen.add(assignment_id)
+        actions.append({
+            "assignment_id": assignment_id,
+            "title": signal.title,
+            "course": signal.meta.get("course"),
+            "score": signal.score,
+            "action": "complete",
+            "label": "Mark done",
+        })
+        if len(actions) >= limit:
+            break
+    return actions
 
 
 def summarize_retrieval(context: dict) -> dict:
@@ -161,18 +199,25 @@ def summarize_retrieval(context: dict) -> dict:
     }
 
 
-def generate_fallback_briefing(db: Session, user: User):
+def generate_fallback_briefing(db: Session, user: User, signals: list = None):
     """
     Generate briefing using deterministic scoring (no AI required).
     
     This is the "thesis-defining" feature — when AI is unavailable,
     the system uses weighted scoring to rank signals by urgency.
     The scoring rubric is transparent and deterministic.
+
+    `signals` can be passed by callers that already scored the user, avoiding
+    a second round of queries and guaranteeing quick actions match the
+    priorities they came from.
     """
     now = datetime.now(timezone.utc)
     
     # Get scored signals from all 4 domains
-    signals = score_signals(db, user)
+    if signals is None:
+        signals = score_signals(db, user)
+
+    quick_actions = build_quick_actions(signals)
 
     # Take top 3 signals as priorities
     priorities = []
@@ -208,6 +253,7 @@ def generate_fallback_briefing(db: Session, user: User):
         "summary": summary,
         "scores": [{"domain": s.domain, "score": s.score, "title": s.title} for s in signals[:5]],
         "retrieval": None,
+        "quick_actions": quick_actions,
         "cached": False,
         "generated_at": now,
     }
@@ -340,16 +386,22 @@ def get_briefing(
     # Always compute scores for transparency metadata
     signals = score_signals(db, current_user)
     scores = [{"domain": s.domain, "score": s.score, "title": s.title} for s in signals[:5]]
+    quick_actions = build_quick_actions(signals)
 
     # Check cache first
     cached = get_cached_insight(db, current_user.id, InsightType.daily)
     if cached:
         logger.info("ai_call", user_id=str(current_user.id), cached=True)
-        return parse_briefing(cached.content, cached.generated_at, scores=scores)
+        return parse_briefing(
+            cached.content,
+            cached.generated_at,
+            scores=scores,
+            quick_actions=quick_actions,
+        )
 
     # No cache — use AI or fallback
     if not client:
-        return generate_fallback_briefing(db, current_user)
+        return generate_fallback_briefing(db, current_user, signals=signals)
 
     try:
         insight, context = generate_insight(
@@ -361,9 +413,10 @@ def get_briefing(
             cached=False,
             scores=scores,
             retrieval=summarize_retrieval(context),
+            quick_actions=quick_actions,
         )
     except ValueError:
-        return generate_fallback_briefing(db, current_user)
+        return generate_fallback_briefing(db, current_user, signals=signals)
 
 
 @router.post("/weekly")
@@ -400,9 +453,10 @@ def refresh_briefing(
     """Force refresh briefing — bypasses cache. Cache prevents redundant AI calls anyway."""
     signals = score_signals(db, current_user)
     scores = [{"domain": s.domain, "score": s.score, "title": s.title} for s in signals[:5]]
+    quick_actions = build_quick_actions(signals)
 
     if not client:
-        return generate_fallback_briefing(db, current_user)
+        return generate_fallback_briefing(db, current_user, signals=signals)
 
     try:
         insight, context = generate_insight(
@@ -414,7 +468,8 @@ def refresh_briefing(
             cached=False,
             scores=scores,
             retrieval=summarize_retrieval(context),
+            quick_actions=quick_actions,
         )
     except ValueError:
-        return generate_fallback_briefing(db, current_user)
+        return generate_fallback_briefing(db, current_user, signals=signals)
 

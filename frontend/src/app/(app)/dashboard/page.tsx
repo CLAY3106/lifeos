@@ -16,6 +16,12 @@ import {
 import { Callout, StatCallout, SectionHeading, Tag, EmptyRow } from "@/components/primitives"
 import toast from "react-hot-toast"
 import { DashboardSkeleton } from "@/components/skeletons"
+import {
+  BRIEFING_QUICK_COMPLETE,
+  QUICK_ACTION_COMPLETED,
+  trackExperimentEvent,
+  useExperiment,
+} from "@/lib/useExperiment"
 
 const fetcher = (url: string) => api.get(url).then(r => r.data)
 
@@ -53,7 +59,8 @@ function ProgressRing({ complete }: { complete: boolean }) {
 
 export default function DashboardPage() {
   const [showFullBriefing, setShowFullBriefing] = useState(false)
-  const { data, isLoading } = useSWR("/dashboard", fetcher, {
+  const [completingAction, setCompletingAction] = useState<string | null>(null)
+  const { data, isLoading, mutate: mutateDashboard } = useSWR("/dashboard", fetcher, {
     refreshInterval: 30000,
   })
 
@@ -67,6 +74,30 @@ export default function DashboardPage() {
       onError: () => {},  // Silently handle errors (e.g. 429 rate limit)
     }
   )
+
+  // Treatment arm of the briefing experiment. Control users see the normal
+  // briefing; treatment users also get one-click completion shortcuts.
+  const { variant: briefingVariant } = useExperiment(BRIEFING_QUICK_COMPLETE)
+
+  async function completeQuickAction(action: { assignment_id: string }) {
+    setCompletingAction(action.assignment_id)
+    try {
+      // Complete the work first, then record the conversion. Counting an
+      // event for a PATCH that failed would overstate the treatment effect.
+      await api.patch(`/assignments/${action.assignment_id}`, { status: "done" })
+      await trackExperimentEvent(
+        BRIEFING_QUICK_COMPLETE,
+        QUICK_ACTION_COMPLETED,
+        { assignment_id: action.assignment_id }
+      )
+      toast.success("Marked done")
+      await Promise.all([refreshAI(), mutateDashboard()])
+    } catch {
+      toast.error("Could not complete that assignment")
+    } finally {
+      setCompletingAction(null)
+    }
+  }
 
   if (isLoading) {
     return <DashboardSkeleton />
@@ -161,6 +192,39 @@ export default function DashboardPage() {
               </p>
             ) : (
               <p className="text-sm text-[var(--muted)] italic">No brief yet.</p>
+            )}
+            {briefingVariant === "treatment" && aiData?.quick_actions?.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-[var(--rule)]">
+                <p className="text-[11px] font-medium text-[var(--muted)] uppercase tracking-wide mb-2">
+                  Quick actions
+                </p>
+                <div className="space-y-2">
+                  {aiData.quick_actions.map((action: any) => (
+                    <div
+                      key={action.assignment_id}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm text-[var(--foreground)] truncate">
+                          {action.title}
+                        </p>
+                        {action.course && (
+                          <p className="text-xs text-[var(--muted)]">{action.course}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => completeQuickAction(action)}
+                        disabled={completingAction === action.assignment_id}
+                        className="shrink-0 bg-[var(--accent)] text-white px-3 py-1.5 rounded-md text-xs font-medium cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2"
+                      >
+                        {completingAction === action.assignment_id
+                          ? "Saving…"
+                          : action.label || "Mark done"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         </Callout>
