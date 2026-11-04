@@ -262,17 +262,29 @@ def _keyword_search(
     """
     Rank chunks with PostgreSQL full-text search (ts_rank_cd).
 
-    `plainto_tsquery` treats the input as plain text, so arbitrary user input
-    (quotes, punctuation, operators) can never produce a syntax error.
+    Terms are OR-ed, not AND-ed. `plainto_tsquery` ANDs every word, so a
+    natural question like "upcoming interviews" matched nothing unless a chunk
+    contained both words; the retrieval eval measured keyword recall@5 on
+    multi-word queries at 0.25 because of it. With OR, any shared term is a
+    match and ts_rank_cd still ranks chunks matching more terms higher.
+
+    The query is built from the lexemes of to_tsvector, each passed through
+    quote_literal, so arbitrary user input can never produce a syntax error.
+    A query made only of stopwords yields NULL and matches nothing.
     """
     if db.get_bind().dialect.name != "postgresql":
         return _keyword_search_fallback(db, user_id, query_text, entity_types, candidate_limit)
 
     sql = (
-        "select id, ts_rank_cd(search_vector, plainto_tsquery('english', :q)) as rank "
-        "from document_chunks "
+        "with q as ("
+        "  select (select string_agg(quote_literal(lexeme), ' | ') "
+        "          from unnest(tsvector_to_array(to_tsvector('english', :q))) as lexeme"
+        "         )::tsquery as query"
+        ") "
+        "select id, ts_rank_cd(search_vector, q.query) as rank "
+        "from document_chunks, q "
         "where user_id = :uid "
-        "and search_vector @@ plainto_tsquery('english', :q)"
+        "and search_vector @@ q.query"
     )
     params = {"q": query_text, "uid": user_id, "lim": candidate_limit}
 
