@@ -273,6 +273,37 @@ python -m pytest tests/ -v
 
 ---
 
+## Retrieval & AI Quality
+
+The AI layer is measured, not just shipped.
+
+### Retrieval eval
+
+`backend/eval/` holds a labeled benchmark: 30 queries over a fixed 36-item student dataset, split into **lexical** (exact names and codes), **semantic** (paraphrases with no shared words), and **mixed** queries. It scores vector-only, keyword-only, and hybrid (RRF) retrieval on recall@5, MRR@5, hit@1, and latency.
+
+```bash
+cd backend
+# Real numbers: Postgres full-text search + OpenAI embeddings
+DATABASE_URL=postgresql+psycopg://... OPENAI_API_KEY=sk-... python -m eval.retrieval_eval
+# Offline smoke run, no API key
+python -m eval.retrieval_eval --embedder fake
+```
+
+**What it caught:** keyword search used `plainto_tsquery`, which ANDs every word, so a natural question like "upcoming interviews" matched nothing unless one chunk contained both words. Switching to OR-ed lexemes (still ranked by `ts_rank_cd`) moved keyword-only results on Postgres:
+
+| Keyword search | Recall@5 | Mixed queries | Exact-match queries |
+|---|---|---|---|
+| Before (AND) | 0.417 | 0.25 | 1.00 |
+| After (OR) | 0.683 | 0.75 | 1.00 |
+
+### Cost tracking
+
+Every briefing logs input/output tokens, latency, and estimated USD cost to `ai_usage_log`. Prices live in one table (`app/services/ai_cost.py`); an earlier version priced Haiku 4.5 at old Claude 3 Haiku rates and under-reported cost 4x. A typical briefing (~900 tokens in, ≤300 out) costs about **$0.0024**. The 6-hour cache keeps normal use to about 4 paid calls per user per day (**~$0.29 per user per month**), and the cache-bypassing `/ai/refresh` is rate-limited to 10 calls per day per IP, so a client looping it can't drain the API budget. When the API is down or unconfigured, deterministic scoring produces the top-3 priorities at no cost.
+
+### Tests
+
+`backend/tests/test_rag.py` covers chunking, ingestion (soft-delete skip, idempotent rebuild, embedding outage), per-user isolation, entity filters, keyword-only degradation, and RRF ordering, using a fake embedder so CI needs no API key.
+
 ## Architecture Decision Records
 
 Key technical decisions documented with full context and tradeoffs:

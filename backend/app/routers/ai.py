@@ -313,6 +313,7 @@ def get_weekly(
 
 
 @router.post("/refresh")
+@limiter.limit("10/day")  # each call bypasses the cache and pays for a Claude call
 def refresh_briefing(
     request: Request,
     db: Session = Depends(get_db),
