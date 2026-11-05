@@ -3,5 +3,6 @@
 __pycache__/
 *.pyc
 .claude/
+logs/
 backend/test.db
 cookies.txt

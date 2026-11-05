@@ -1,0 +1,64 @@
+# OPTIONAL: run the LifeOS agent team in GitHub Actions instead of on your laptop.
+# Rename to agents-daily.yml to enable. Untested sketch: try it with "Run workflow" first.
+#
+# Needs repository secrets:
+#   - Your model provider key (for example ANTHROPIC_API_KEY or another provider's key)
+#   - AGENT_GH_TOKEN: a fine-grained personal access token with contents, issues, and
+#     pull requests write access on this repo. A PAT is needed because PRs opened with the
+#     default GITHUB_TOKEN do not trigger your CI workflows.
+
+name: LifeOS agents daily
+
+on:
+  schedule:
+    - cron: "30 17 * * *"   # 17:30 UTC = 02:30 JST
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: lifeos-agents
+  cancel-in-progress: false
+
+jobs:
+  sprint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.AGENT_GH_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install project dependencies
+        run: |
+          pip install -r backend/requirements.txt
+          cd frontend && npm ci
+
+      - name: Install OpenCode
+        run: npm install -g opencode-ai
+
+      - name: Configure git identity
+        run: |
+          git config user.name "lifeos-agents"
+          git config user.email "lifeos-agents@users.noreply.github.com"
+
+      - name: Run scrum lead
+        env:
+          GH_TOKEN: ${{ secrets.AGENT_GH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          opencode run --agent scrum-lead --auto \
+            --title "Daily sprint $(date +%F)" \
+            "Run today's daily cycle exactly as your instructions describe. This run is unattended: never ask questions. If something is unclear or blocked, write it in the daily report and stop."
