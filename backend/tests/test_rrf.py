@@ -12,7 +12,6 @@ from conftest.py to exercise the real DB-backed paths.
 RRF formula: score(chunk) = sum over lists of 1.0 / (k + rank)   k=60 default
 """
 
-import json
 import math
 import uuid
 from types import SimpleNamespace
