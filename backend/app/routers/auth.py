@@ -19,7 +19,14 @@ from fastapi import APIRouter, Depends, HTTPException, Response, Request
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
-from app.schemas.user import UserCreate, UserResponse, UserUpdate, LoginRequest, Token
+from app.schemas.user import (
+    UserCreate,
+    UserResponse,
+    UserUpdate,
+    LoginRequest,
+    Token,
+    ALLOWED_ACTIVE_MODULES,
+)
 from app.services.auth import hash_password, verify_password, authenticate_user, create_access_token
 from app.dependencies import get_current_user
 from slowapi import Limiter
@@ -135,6 +142,8 @@ def update_me(
     - Monthly budget
     - Weekly capacity hours
     - Password (requires current password verification)
+    - Onboarding completion timestamp (ISO string; null means "not provided")
+    - Active modules (non-empty subset of academics/jobs/fitness/finance)
     
     If updating password, the current password must be provided
     and verified before the new password is set.
@@ -145,6 +154,30 @@ def update_me(
         current_user.monthly_budget = data.monthly_budget
     if data.weekly_capacity_hours is not None:
         current_user.weekly_capacity_hours = data.weekly_capacity_hours
+
+    if data.onboarding_completed_at is not None:
+        current_user.onboarding_completed_at = data.onboarding_completed_at
+
+    if data.active_modules is not None:
+        if not data.active_modules:
+            raise HTTPException(status_code=400, detail="active_modules must not be empty")
+        unknown = [m for m in data.active_modules if m not in ALLOWED_ACTIVE_MODULES]
+        if unknown:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "active_modules values must be one of: "
+                    + ", ".join(sorted(ALLOWED_ACTIVE_MODULES))
+                ),
+            )
+        # Duplicates are stripped (first occurrence wins), not rejected.
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for module in data.active_modules:
+            if module not in seen:
+                seen.add(module)
+                deduped.append(module)
+        current_user.active_modules = deduped
 
     # Password change requires current password verification
     if data.new_password:
