@@ -28,13 +28,16 @@ def test_refresh_is_rate_limited(client, demo_user, auth_headers, monkeypatch):
 
     paid_calls = []
 
-    def fake_generate(db, user, insight_type, prompt):
+    def fake_generate(db, user, insight_type, prompt, signals=None):
         paid_calls.append(1)
-        return SimpleNamespace(content='{"priorities": [], "summary": "ok"}',
-                               generated_at=datetime.now(timezone.utc))
+        insight = SimpleNamespace(content='{"priorities": [], "summary": "ok"}',
+                                  generated_at=datetime.now(timezone.utc))
+        context = {"retrieved_records": [], "retrieval_query": ""}
+        return insight, context
 
     monkeypatch.setattr(ai, "client", object())  # pretend an API key is configured
     monkeypatch.setattr(ai, "generate_insight", fake_generate)
+    monkeypatch.setattr(ai, "account_is_empty", lambda db, user_id: False)
     ai.limiter.reset()
     try:
         codes = [client.post("/ai/refresh", **auth_headers).status_code for _ in range(11)]
