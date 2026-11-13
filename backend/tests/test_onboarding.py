@@ -4,7 +4,11 @@ from app.models.activity_log import ActivityLog
 def test_onboarding_started_is_logged(client, demo_user, auth_headers, db_session):
     response = client.post("/onboarding/events", json={"event": "onboarding_started"}, **auth_headers)
     assert response.status_code == 200
-    assert response.json() == {"message": "Onboarding event recorded", "event": "onboarding_started"}
+    body = response.json()
+    assert body["action"] == "onboarding_started"
+    assert body["entity_type"] == "onboarding"
+    assert body["details"] is None
+    assert "id" in body and "created_at" in body
 
     rows = db_session.query(ActivityLog).filter(ActivityLog.user_id == demo_user.id).all()
     assert len(rows) == 1

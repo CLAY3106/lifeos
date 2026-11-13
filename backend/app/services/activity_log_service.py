@@ -43,6 +43,7 @@ def log_activity(db: Session, user_id: UUID, action: str, entity_type: str, enti
     )
     db.add(entry)
     db.commit()
+    return entry
 
 
 def get_recent_activities(db: Session, user_id: UUID, limit: int = 20):

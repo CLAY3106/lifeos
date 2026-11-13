@@ -25,13 +25,14 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
+from app.schemas.activity_log import ActivityLogResponse
 from app.schemas.onboarding import OnboardingEventIn
 from app.services.activity_log_service import log_activity
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
 
 
-@router.post("/events")
+@router.post("/events", response_model=ActivityLogResponse)
 def create_onboarding_event(
     data: OnboardingEventIn,
     db: Session = Depends(get_db),
@@ -40,9 +41,10 @@ def create_onboarding_event(
     """
     Record an onboarding wizard event for the current user.
 
-    Writes an activity log entry (entity_type "onboarding"). For
-    onboarding_completed it also sets onboarding_completed_at once,
-    making server-side completion idempotent with the PATCH /auth/me path.
+    Writes an activity log entry (entity_type "onboarding") and returns it,
+    matching the shape of GET /activity. For onboarding_completed it also
+    sets onboarding_completed_at once, making server-side completion
+    idempotent with the PATCH /auth/me path.
     """
     if data.event == "onboarding_step_completed" and data.step is None:
         raise HTTPException(
@@ -56,12 +58,10 @@ def create_onboarding_event(
         current_user.onboarding_completed_at = datetime.now(timezone.utc)
 
     # log_activity commits, which also persists the timestamp set above.
-    log_activity(
+    return log_activity(
         db,
         current_user.id,
         action=data.event,
         entity_type="onboarding",
         details=f"step={data.step}" if data.step is not None else None,
     )
-
-    return {"message": "Onboarding event recorded", "event": data.event}
