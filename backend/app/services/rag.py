@@ -273,37 +273,31 @@ def _keyword_search(
     """
     Rank chunks with PostgreSQL full-text search (ts_rank_cd).
 
-    Each query term is parsed with `plainto_tsquery` (safe for arbitrary user
-    input) and the terms are OR-ed together with `||`. AND semantics — what a
-    single `plainto_tsquery` produces — is far too strict for retrieval: a
-    query built from three signals would require one chunk to contain every
-    word from all three, which never happens.
+    Terms are OR-ed, not AND-ed. `plainto_tsquery` ANDs every word, so a
+    natural question like "upcoming interviews" matched nothing unless a chunk
+    contained both words; the retrieval eval measured keyword recall@5 on
+    multi-word queries at 0.25 because of it. With OR, any shared term is a
+    match and ts_rank_cd still ranks chunks matching more terms higher.
 
-    OR-ing keeps recall high; ts_rank_cd still ranks chunks that match more
-    terms (and rarer terms) above chunks that match one.
+    The query is built from the lexemes of to_tsvector, each passed through
+    quote_literal, so arbitrary user input can never produce a syntax error.
+    A query made only of stopwords yields NULL and matches nothing.
     """
     if db.get_bind().dialect.name != "postgresql":
         return _keyword_search_fallback(db, user_id, query_text, entity_types, candidate_limit)
 
-    # Alphanumeric terms only; this is both a tokenizer and a guard against
-    # tsquery syntax injection. Cap the count so the SQL stays small.
-    terms = _keyword_terms(query_text)
-    if not terms:
-        return []
-
-    combined_query = " || ".join(
-        f"plainto_tsquery('english', :t{i})" for i in range(len(terms))
-    )
     sql = (
-        f"with q as (select {combined_query} as query) "
+        "with q as ("
+        "  select (select string_agg(quote_literal(lexeme), ' | ') "
+        "          from unnest(tsvector_to_array(to_tsvector('english', :q))) as lexeme"
+        "         )::tsquery as query"
+        ") "
         "select id, ts_rank_cd(search_vector, q.query) as rank "
         "from document_chunks, q "
         "where user_id = :uid "
         "and search_vector @@ q.query"
     )
-    params = {f"t{i}": term for i, term in enumerate(terms)}
-    params["uid"] = user_id
-    params["lim"] = candidate_limit
+    params = {"q": query_text, "uid": user_id, "lim": candidate_limit}
 
     if entity_types:
         sql += " and entity_type in :types"
