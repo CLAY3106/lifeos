@@ -125,7 +125,7 @@ def test_briefing_grounds_prompt_in_retrieved_records(
 
 
 def test_briefing_survives_retrieval_failure(
-    client, demo_user, auth_headers, fake_ai, monkeypatch
+    client, demo_user, auth_headers, fake_ai, monkeypatch, indexed_assignment
 ):
     def unavailable(*args, **kwargs):
         raise RuntimeError("index unavailable")

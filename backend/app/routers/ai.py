@@ -15,8 +15,13 @@ Response shape:
     "summary": "Today's focus: assignment: overdue dsa assignment, fitness: get a workout in.",
     "scores": [{"domain": "assignment", "score": 92, "title": "..."}],
     "cached": false,
-    "generated_at": "2026-09-10T..."
+    "generated_at": "2026-09-10T...",
+    "sample": false
 }
+
+"sample" is true only when the account has no data at all (no assignments,
+jobs, workouts, or expenses) and the briefing is a generic example. Every
+POST /ai/briefing and POST /ai/refresh response includes the key.
 """
 
 from fastapi import APIRouter, Depends, Request
@@ -109,6 +114,42 @@ def get_cached_insight(db: Session, user_id, insight_type: InsightType):
         AIInsight.type == insight_type,
         AIInsight.generated_at >= six_hours_ago
     ).first()
+
+
+def account_is_empty(db: Session, user_id) -> bool:
+    """
+    True when the user has no assignments, job applications, workouts,
+    or expenses.
+
+    This runs before any cache read or provider call so a brand-new
+    account never reaches the AI client, even if a stale insight row
+    existed. Soft-deleted assignments do not count as data.
+    """
+    has_assignment = (
+        db.query(Assignment.id)
+        .filter(Assignment.user_id == user_id, Assignment.deleted_at.is_(None))
+        .first()
+        is not None
+    )
+    if has_assignment:
+        return False
+    if db.query(JobApplication.id).filter(JobApplication.user_id == user_id).first():
+        return False
+    if db.query(Workout.id).filter(Workout.user_id == user_id).first():
+        return False
+    return db.query(Expense.id).filter(Expense.user_id == user_id).first() is None
+
+
+def with_sample(briefing: dict, sample: bool) -> dict:
+    """
+    Tag a briefing dict with the "sample" contract key.
+
+    Added here in the route layer (not inside parse or the fallback
+    generator) so both helpers keep their existing shapes and every
+    /briefing response still reports whether it came from real data.
+    """
+    briefing["sample"] = sample
+    return briefing
 
 
 def parse_briefing(content: str, generated_at, cached: bool = True, scores: list = None, retrieval: dict = None, quick_actions: list = None):
@@ -378,6 +419,8 @@ def get_briefing(
     Get daily briefing — AI-powered with deterministic scoring.
     
     Flow:
+    0. Empty account (no assignments/jobs/workouts/expenses) → sample
+       fallback, no cache read and no AI call
     1. Always compute scores (for transparency metadata)
     2. Check cache (6-hour TTL)
     3. If no cache and AI available → generate with Claude
@@ -388,35 +431,56 @@ def get_briefing(
     scores = [{"domain": s.domain, "score": s.score, "title": s.title} for s in signals[:5]]
     quick_actions = build_quick_actions(signals)
 
+    # Empty accounts are checked first so they can never hit the AI client
+    # or the insight cache, no matter what rows are lying around.
+    if account_is_empty(db, current_user.id):
+        logger.info("briefing_sample_fallback", user_id=str(current_user.id))
+        return with_sample(
+            generate_fallback_briefing(db, current_user, signals=signals),
+            sample=True,
+        )
+
     # Check cache first
     cached = get_cached_insight(db, current_user.id, InsightType.daily)
     if cached:
         logger.info("ai_call", user_id=str(current_user.id), cached=True)
-        return parse_briefing(
-            cached.content,
-            cached.generated_at,
-            scores=scores,
-            quick_actions=quick_actions,
+        return with_sample(
+            parse_briefing(
+                cached.content,
+                cached.generated_at,
+                scores=scores,
+                quick_actions=quick_actions,
+            ),
+            sample=False,
         )
 
     # No cache — use AI or fallback
     if not client:
-        return generate_fallback_briefing(db, current_user, signals=signals)
+        return with_sample(
+            generate_fallback_briefing(db, current_user, signals=signals),
+            sample=False,
+        )
 
     try:
         insight, context = generate_insight(
             db, current_user, InsightType.daily, DAILY_PROMPT, signals=signals
         )
-        return parse_briefing(
-            insight.content,
-            insight.generated_at,
-            cached=False,
-            scores=scores,
-            retrieval=summarize_retrieval(context),
-            quick_actions=quick_actions,
+        return with_sample(
+            parse_briefing(
+                insight.content,
+                insight.generated_at,
+                cached=False,
+                scores=scores,
+                retrieval=summarize_retrieval(context),
+                quick_actions=quick_actions,
+            ),
+            sample=False,
         )
     except ValueError:
-        return generate_fallback_briefing(db, current_user, signals=signals)
+        return with_sample(
+            generate_fallback_briefing(db, current_user, signals=signals),
+            sample=False,
+        )
 
 
 @router.post("/weekly")
@@ -455,21 +519,38 @@ def refresh_briefing(
     scores = [{"domain": s.domain, "score": s.score, "title": s.title} for s in signals[:5]]
     quick_actions = build_quick_actions(signals)
 
+    # Same empty-account guard as /briefing: no provider call, no cache write.
+    if account_is_empty(db, current_user.id):
+        logger.info("briefing_sample_fallback", user_id=str(current_user.id))
+        return with_sample(
+            generate_fallback_briefing(db, current_user, signals=signals),
+            sample=True,
+        )
+
     if not client:
-        return generate_fallback_briefing(db, current_user, signals=signals)
+        return with_sample(
+            generate_fallback_briefing(db, current_user, signals=signals),
+            sample=False,
+        )
 
     try:
         insight, context = generate_insight(
             db, current_user, InsightType.daily, DAILY_PROMPT, signals=signals
         )
-        return parse_briefing(
-            insight.content,
-            insight.generated_at,
-            cached=False,
-            scores=scores,
-            retrieval=summarize_retrieval(context),
-            quick_actions=quick_actions,
+        return with_sample(
+            parse_briefing(
+                insight.content,
+                insight.generated_at,
+                cached=False,
+                scores=scores,
+                retrieval=summarize_retrieval(context),
+                quick_actions=quick_actions,
+            ),
+            sample=False,
         )
     except ValueError:
-        return generate_fallback_briefing(db, current_user, signals=signals)
+        return with_sample(
+            generate_fallback_briefing(db, current_user, signals=signals),
+            sample=False,
+        )
 
