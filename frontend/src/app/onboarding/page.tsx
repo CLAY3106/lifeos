@@ -448,20 +448,25 @@ export default function OnboardingPage() {
    * The single completion path. Finishing the last step and skipping the whole
    * wizard both mark onboarding done, so the checklist and the dashboard guard
    * behave the same either way.
+   *
+   * The PATCH is the source of truth: the dashboard guard reads the same
+   * /auth/me cache, so writing the local "wizard done" flags or navigating
+   * before the PATCH succeeds would let the guard bounce the user straight
+   * back here once it revalidates against the real (unsaved) server state.
    */
   async function completeFlow(skipSetup: boolean) {
     if (completing) return
     setCompleting(true)
+    setSyncNote("")
     const now = new Date().toISOString()
-    // Local flags first, they are read as soon as the dashboard mounts.
+    const saved = await patchMe({ onboarding_completed_at: now })
+    if (!saved) {
+      setCompleting(false)
+      setSyncNote("Couldn't finish setup. Check your connection and try again.")
+      return
+    }
     recordWizardDone()
     if (skipSetup) await postEvent({ event: "onboarding_skipped" })
-    const saved = await patchMe({ onboarding_completed_at: now })
-    if (!saved && me) {
-      // Reflect the intended state locally so the dashboard guard does not
-      // send the user straight back here if the PATCH failed.
-      await mutate({ ...me, onboarding_completed_at: now }, false)
-    }
     await postEvent({ event: "onboarding_completed" })
     router.push("/dashboard")
   }
