@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import useSWR from "swr"
 import api from "@/lib/api"
+import { type ModuleKey } from "@/lib/modules"
 import {
   LeafIcon,
   LightbulbIcon,
@@ -30,6 +31,7 @@ const fetcher = (url: string) => api.get(url).then(r => r.data)
 // Only the fields this page needs from GET /auth/me.
 interface MeBrief {
   onboarding_completed_at: string | null
+  active_modules?: ModuleKey[]
 }
 
 function greeting() {
@@ -130,6 +132,19 @@ export default function DashboardPage() {
   const budgetPercent = data.finance.budget_percent
   const daysSinceWorkout = data.fitness.days_since_workout
 
+  // Module sections are hidden for modules the user turned off in onboarding.
+  // While /auth/me is still loading, active_modules is undefined and every
+  // section stays visible so nothing flickers (same rule as the sidebar).
+  const activeModules = me?.active_modules
+  const isModuleActive = (m: ModuleKey) =>
+    !activeModules || activeModules.includes(m)
+  const showAssignments = isModuleActive("academics")
+  const showJobStats = isModuleActive("jobs")
+  const showFitnessStats = isModuleActive("fitness")
+  const showFinanceStats = isModuleActive("finance")
+  const showStats =
+    showAssignments || showJobStats || showFitnessStats || showFinanceStats
+
   return (
     <div className="max-w-5xl mx-auto px-16">
       {/* Notion-style cover strip */}
@@ -150,6 +165,7 @@ export default function DashboardPage() {
         <SetupChecklist
           wizardCompleted={Boolean(me?.onboarding_completed_at)}
           briefingRendered={Boolean(aiData)}
+          activeModules={activeModules}
         />
 
         {/* AI Briefing callout */}
@@ -212,7 +228,7 @@ export default function DashboardPage() {
             ) : (
               <p className="text-sm text-[var(--muted)] italic">No brief yet.</p>
             )}
-            {briefingVariant === "treatment" && aiData?.quick_actions?.length > 0 && (
+            {showAssignments && briefingVariant === "treatment" && aiData?.quick_actions?.length > 0 && (
               <div className="mt-4 pt-3 border-t border-[var(--rule)]">
                 <p className="text-[11px] font-medium text-[var(--muted)] uppercase tracking-wide mb-2">
                   Quick actions
@@ -248,114 +264,131 @@ export default function DashboardPage() {
           </div>
         </Callout>
 
-        {/* Two-column layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
-          {/* LEFT — database-style upcoming */}
-          <section>
-            <SectionHeading icon={CalendarIcon} title="This week" count={data.assignments.upcoming.length} />
-            {data.assignments.upcoming.length === 0 ? (
-              <EmptyRow icon={CheckCircleIcon} text="Nothing due this week." />
-            ) : (
-              <div className="border border-[var(--rule)] rounded-md overflow-hidden">
-                <div className="grid grid-cols-[24px_1fr_120px_100px_100px] gap-3 px-3 py-2 bg-[var(--callout-gray)] text-[11px] font-medium text-[var(--muted)] uppercase tracking-wide">
-                  <span></span>
-                  <span>Assignment</span>
-                  <span>Course</span>
-                  <span>Est. hrs</span>
-                  <span className="text-right">Due</span>
-                </div>
-                {data.assignments.upcoming.map((a: any, i: number) => {
-                  // Relative due labels intentionally use the current time on
-                  // each render; this is a display-only value, not state.
-                  const nowMs = Date.now() // eslint-disable-line react-hooks/purity
-                  const days = Math.ceil(
-                    (new Date(a.due_date).getTime() - nowMs) / 86400000
-                  )
-                  const urgent = days <= 2
-                  const dueLabel =
-                    days < 0
-                      ? "Overdue"
-                      : days === 0
-                      ? "Today"
-                      : days === 1
-                      ? "Tomorrow"
-                      : `${days}d`
-                  return (
-                    <div
-                      key={a.id}
-                      className={`grid grid-cols-[24px_1fr_120px_100px_100px] gap-3 px-3 py-2.5 items-center text-sm hover:bg-[var(--surface-hover)] transition-colors ${
-                        i < data.assignments.upcoming.length - 1
-                          ? "border-b border-[var(--rule)]"
-                          : ""
-                      }`}
-                    >
-                      <ProgressRing complete={a.status === "done"} />
-                      <span className="text-[var(--foreground)] truncate">{a.title}</span>
-                      <Tag>{a.course || "—"}</Tag>
-                      <span className="text-[var(--muted)]">
-                        {a.estimated_hours ? `${a.estimated_hours}h` : "—"}
-                      </span>
-                      <span
-                        className={`text-right text-xs font-medium ${
-                          urgent ? "text-[var(--danger)]" : "text-[var(--muted)]"
+        {/* Two-column layout. With the assignments column hidden the stats
+            keep a fixed 320px column so the callouts do not stretch. */}
+        <div
+          className={`grid grid-cols-1 gap-8 ${
+            showAssignments ? "lg:grid-cols-[1fr_320px]" : "lg:grid-cols-[320px]"
+          }`}
+        >
+          {/* LEFT: upcoming assignments (academics) */}
+          {showAssignments && (
+            <section>
+              <SectionHeading icon={CalendarIcon} title="This week" count={data.assignments.upcoming.length} />
+              {data.assignments.upcoming.length === 0 ? (
+                <EmptyRow icon={CheckCircleIcon} text="Nothing due this week." />
+              ) : (
+                <div className="border border-[var(--rule)] rounded-md overflow-hidden">
+                  <div className="grid grid-cols-[24px_1fr_120px_100px_100px] gap-3 px-3 py-2 bg-[var(--callout-gray)] text-[11px] font-medium text-[var(--muted)] uppercase tracking-wide">
+                    <span></span>
+                    <span>Assignment</span>
+                    <span>Course</span>
+                    <span>Est. hrs</span>
+                    <span className="text-right">Due</span>
+                  </div>
+                  {data.assignments.upcoming.map((a: any, i: number) => {
+                    // Relative due labels intentionally use the current time on
+                    // each render; this is a display-only value, not state.
+                    const nowMs = Date.now() // eslint-disable-line react-hooks/purity
+                    const days = Math.ceil(
+                      (new Date(a.due_date).getTime() - nowMs) / 86400000
+                    )
+                    const urgent = days <= 2
+                    const dueLabel =
+                      days < 0
+                        ? "Overdue"
+                        : days === 0
+                        ? "Today"
+                        : days === 1
+                        ? "Tomorrow"
+                        : `${days}d`
+                    return (
+                      <div
+                        key={a.id}
+                        className={`grid grid-cols-[24px_1fr_120px_100px_100px] gap-3 px-3 py-2.5 items-center text-sm hover:bg-[var(--surface-hover)] transition-colors ${
+                          i < data.assignments.upcoming.length - 1
+                            ? "border-b border-[var(--rule)]"
+                            : ""
                         }`}
                       >
-                        {dueLabel}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </section>
+                        <ProgressRing complete={a.status === "done"} />
+                        <span className="text-[var(--foreground)] truncate">{a.title}</span>
+                        <Tag>{a.course || "—"}</Tag>
+                        <span className="text-[var(--muted)]">
+                          {a.estimated_hours ? `${a.estimated_hours}h` : "—"}
+                        </span>
+                        <span
+                          className={`text-right text-xs font-medium ${
+                            urgent ? "text-[var(--danger)]" : "text-[var(--muted)]"
+                          }`}
+                        >
+                          {dueLabel}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </section>
+          )}
 
-          {/* RIGHT — callout stats */}
-          <aside className="space-y-3">
-            <p className="text-[11px] font-medium text-[var(--muted-2)] uppercase tracking-wide mb-2">
-              At a glance
-            </p>
+          {/* RIGHT: at-a-glance stats, one per active module */}
+          {showStats && (
+            <aside className="space-y-3">
+              <p className="text-[11px] font-medium text-[var(--muted-2)] uppercase tracking-wide mb-2">
+                At a glance
+              </p>
 
-            <StatCallout
-              icon={ClockIcon}
-              tone="blue"
-              label="Weekly load"
-              value={`${data.assignments.weekly_load_hours}h`}
-              context={`of ${data.assignments.weekly_capacity_hours}h`}
-              meter={loadPercent}
-              alert={loadPercent >= 80}
-            />
-            <StatCallout
-              icon={BriefcaseIcon}
-              tone={data.jobs.overdue_followups > 0 ? "red" : "gray"}
-              label="Job follow-ups"
-              value={data.jobs.overdue_followups}
-              context={data.jobs.overdue_followups === 1 ? "overdue" : "overdue"}
-              alert={data.jobs.overdue_followups > 0}
-            />
-            <StatCallout
-              icon={ActivityIcon}
-              tone={daysSinceWorkout != null && daysSinceWorkout >= 3 ? "yellow" : "green"}
-              label="Last workout"
-              value={daysSinceWorkout ?? "—"}
-              context={
-                daysSinceWorkout == null
-                  ? "no sessions"
-                  : daysSinceWorkout === 1
-                  ? "day ago"
-                  : "days ago"
-              }
-              alert={daysSinceWorkout != null && daysSinceWorkout >= 5}
-            />
-            <StatCallout
-              icon={WalletIcon}
-              tone={budgetPercent >= 100 ? "red" : budgetPercent >= 80 ? "yellow" : "purple"}
-              label="Spent this month"
-              value={`$${data.finance.total_spent.toFixed(0)}`}
-              context={`of $${data.finance.monthly_budget} budget`}
-              meter={budgetPercent}
-              alert={budgetPercent >= 100}
-            />
-          </aside>
+              {showAssignments && (
+                <StatCallout
+                  icon={ClockIcon}
+                  tone="blue"
+                  label="Weekly load"
+                  value={`${data.assignments.weekly_load_hours}h`}
+                  context={`of ${data.assignments.weekly_capacity_hours}h`}
+                  meter={loadPercent}
+                  alert={loadPercent >= 80}
+                />
+              )}
+              {showJobStats && (
+                <StatCallout
+                  icon={BriefcaseIcon}
+                  tone={data.jobs.overdue_followups > 0 ? "red" : "gray"}
+                  label="Job follow-ups"
+                  value={data.jobs.overdue_followups}
+                  context={data.jobs.overdue_followups === 1 ? "overdue" : "overdue"}
+                  alert={data.jobs.overdue_followups > 0}
+                />
+              )}
+              {showFitnessStats && (
+                <StatCallout
+                  icon={ActivityIcon}
+                  tone={daysSinceWorkout != null && daysSinceWorkout >= 3 ? "yellow" : "green"}
+                  label="Last workout"
+                  value={daysSinceWorkout ?? "—"}
+                  context={
+                    daysSinceWorkout == null
+                      ? "no sessions"
+                      : daysSinceWorkout === 1
+                      ? "day ago"
+                      : "days ago"
+                  }
+                  alert={daysSinceWorkout != null && daysSinceWorkout >= 5}
+                />
+              )}
+              {showFinanceStats && (
+                <StatCallout
+                  icon={WalletIcon}
+                  tone={budgetPercent >= 100 ? "red" : budgetPercent >= 80 ? "yellow" : "purple"}
+                  label="Spent this month"
+                  value={`$${data.finance.total_spent.toFixed(0)}`}
+                  context={`of $${data.finance.monthly_budget} budget`}
+                  meter={budgetPercent}
+                  alert={budgetPercent >= 100}
+                />
+              )}
+            </aside>
+          )}
         </div>
 
         <div className="h-16" />

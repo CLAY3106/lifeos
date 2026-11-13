@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import useSWR from "swr"
 import api from "@/lib/api"
 import { CheckCircleIcon } from "@/components/icons"
+import { type ModuleKey } from "@/lib/modules"
 import {
   dismissChecklist,
   readChecklistLocal,
@@ -18,22 +19,31 @@ interface ChecklistItem {
 }
 
 /**
- * "LifeOS setup: X of 6" card.
+ * "LifeOS setup: X of N" card.
  *
  * Items 1-4 come pre-checked from the wizard: the backend timestamp
  * (onboarding_completed_at) plus the local flag written when the wizard's
  * final button was pressed. Item 5 reads live data, item 6 compares the local
  * briefing date against the onboarding date. The whole card disappears once
  * everything is done or the user dismisses it.
+ *
+ * The workout item is fitness-only, so it is dropped from the list (and from
+ * the total) when fitness is not in active_modules. activeModules is passed in
+ * by the dashboard, which already reads /auth/me.
  */
 export default function SetupChecklist({
   wizardCompleted,
   briefingRendered,
+  activeModules,
 }: {
   wizardCompleted: boolean
   briefingRendered: boolean
+  activeModules?: ModuleKey[]
 }) {
-  const { data: routines } = useSWR("/routines", fetcher)
+  // undefined means /auth/me has not resolved yet: show the item so the
+  // checklist does not flicker, same rule as the sidebar.
+  const showWorkoutItem = !activeModules || activeModules.includes("fitness")
+  const { data: routines } = useSWR(showWorkoutItem ? "/routines" : null, fetcher)
   const [local, setLocal] = useState<ChecklistLocal | null>(null)
   const [dismissed, setDismissed] = useState(false)
 
@@ -59,7 +69,9 @@ export default function SetupChecklist({
     { label: "Set your limits", done: wizardItemsDone },
     { label: "Add your first items", done: wizardItemsDone },
     { label: "See your first briefing", done: wizardItemsDone },
-    { label: "Add a workout routine", done: (routines?.length ?? 0) > 0 },
+    ...(showWorkoutItem
+      ? [{ label: "Add a workout routine", done: (routines?.length ?? 0) > 0 }]
+      : []),
     { label: "Open tomorrow's briefing", done: local.briefingSeen },
   ]
 
