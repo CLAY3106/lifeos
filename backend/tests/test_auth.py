@@ -63,3 +63,61 @@ def test_me_unauthenticated(client):
 def test_logout(client):
     response = client.post("/auth/logout")
     assert response.status_code == 200
+
+
+def test_me_defaults_to_not_onboarded_with_all_modules(client, demo_user, auth_headers):
+    response = client.get("/auth/me", **auth_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["onboarding_completed_at"] is None
+    assert set(data["active_modules"]) == {"academics", "jobs", "fitness", "finance"}
+
+
+def test_patch_me_sets_onboarding_completed_at(client, demo_user, auth_headers):
+    response = client.patch(
+        "/auth/me",
+        json={"onboarding_completed_at": "2026-11-13T10:00:00Z"},
+        **auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["onboarding_completed_at"] is not None
+
+
+def test_patch_me_updates_active_modules(client, demo_user, auth_headers):
+    response = client.patch(
+        "/auth/me",
+        json={"active_modules": ["jobs", "finance"]},
+        **auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["active_modules"] == ["jobs", "finance"]
+
+
+def test_patch_me_dedupes_active_modules(client, demo_user, auth_headers):
+    response = client.patch(
+        "/auth/me",
+        json={"active_modules": ["jobs", "jobs", "finance"]},
+        **auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["active_modules"] == ["jobs", "finance"]
+
+
+def test_patch_me_rejects_unknown_module(client, demo_user, auth_headers):
+    response = client.patch(
+        "/auth/me",
+        json={"active_modules": ["bogus"]},
+        **auth_headers,
+    )
+    assert response.status_code == 400
+    assert "active_modules values must be one of" in response.json()["detail"]
+
+
+def test_patch_me_rejects_empty_module_list(client, demo_user, auth_headers):
+    response = client.patch(
+        "/auth/me",
+        json={"active_modules": []},
+        **auth_headers,
+    )
+    assert response.status_code == 400
+    assert "must not be empty" in response.json()["detail"]
