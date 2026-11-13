@@ -10,6 +10,10 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { ListSkeleton } from "@/components/skeletons"
 import toast from "react-hot-toast"
+import { focusForm } from "@/lib/focusForm"
+
+const emptyStateButtonClass =
+  "inline-flex items-center bg-[var(--accent)] text-white px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 cursor-pointer transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2"
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement)
 
@@ -276,6 +280,26 @@ export default function FinancePage() {
         <h1 className="text-2xl font-bold text-[var(--foreground)]">Finance</h1>
       </div>
 
+      {/* Empty state: no expenses yet */}
+      {data && data.length === 0 && (
+        <div className="mb-4 border border-dashed border-[var(--rule)] rounded-md p-6 text-center">
+          <p className="text-sm text-[var(--muted)] mb-3">
+            Log spending here to see where your money actually goes.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setTab("envelopes")
+              // The form only exists on the envelopes tab, focus after it renders.
+              setTimeout(() => focusForm("add-expense-form"), 0)
+            }}
+            className={emptyStateButtonClass}
+          >
+            Add the first expense
+          </button>
+        </div>
+      )}
+
       {/* Sub-tabs */}
       <div className="flex gap-1 mb-6 bg-[var(--callout-gray)] rounded-lg p-1">
         {(["envelopes", "transactions"] as const).map(t => (
@@ -295,7 +319,7 @@ export default function FinancePage() {
 
       {/* Add Form - Envelopes tab only */}
       {tab === "envelopes" && (
-        <div className="bg-[var(--surface)] border border-[var(--rule)] rounded-md p-4 shadow-sm mb-4">
+        <div id="add-expense-form" className="bg-[var(--surface)] border border-[var(--rule)] rounded-md p-4 shadow-sm mb-4">
         <h2 className="text-sm font-semibold text-[var(--foreground)] mb-3">Add Expense</h2>
         <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-2 gap-2 mb-3">
           <div>
@@ -483,13 +507,14 @@ export default function FinancePage() {
               title="To date"
             />
           </div>
-          <div className="bg-[var(--surface)] border border-[var(--rule)] rounded-md shadow-sm divide-y divide-[var(--rule)] overflow-hidden">
-            {!data ? (
-              <div className="p-4"><ListSkeleton count={3} /></div>
-            ) : filteredTransactions.length === 0 ? (
-              <p className="p-4 text-sm text-[var(--muted-2)]">No transactions found.</p>
-            ) : (
-              filteredTransactions.map((e: any) => (
+          {data && data.length === 0 ? null : (
+            <div className="bg-[var(--surface)] border border-[var(--rule)] rounded-md shadow-sm divide-y divide-[var(--rule)] overflow-hidden">
+              {!data ? (
+                <div className="p-4"><ListSkeleton count={3} /></div>
+              ) : filteredTransactions.length === 0 ? (
+                <p className="p-4 text-sm text-[var(--muted-2)]">No transactions found.</p>
+              ) : (
+                filteredTransactions.map((e: any) => (
                 <div key={e.id} className="px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-[var(--surface-hover)] transition-colors">
                   <div className="min-w-0">
                     <p className="font-semibold text-sm text-[var(--foreground)] tabular-nums">${e.amount.toFixed(2)}</p>
@@ -511,7 +536,8 @@ export default function FinancePage() {
                 </div>
               ))
             )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 

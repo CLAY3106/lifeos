@@ -7,8 +7,12 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import toast from "react-hot-toast"
 import { TableSkeleton } from "@/components/skeletons"
+import { focusForm } from "@/lib/focusForm"
 
 const fetcher = (url: string) => api.get(url).then(r => r.data)
+
+const emptyStateButtonClass =
+  "inline-flex items-center bg-[var(--accent)] text-white px-4 py-2 rounded-md text-sm font-medium cursor-pointer transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2"
 
 const assignmentSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -106,8 +110,27 @@ export default function AssignmentsPage() {
         <h1 className="text-2xl font-bold text-[var(--foreground)]">Assignments</h1>
       </div>
 
+      {/* Empty state: no assignments yet */}
+      {data && data.length === 0 && (
+        <div className="mb-6 border border-dashed border-[var(--rule)] rounded-md p-6 text-center">
+          <p className="text-sm text-[var(--muted)] mb-3">
+            Track coursework here so deadlines never sneak up on you.
+          </p>
+          <button
+            type="button"
+            onClick={() => focusForm("add-assignment-form")}
+            className={emptyStateButtonClass}
+          >
+            Add the first assignment
+          </button>
+        </div>
+      )}
+
       {/* Add Form */}
-      <div className="bg-[var(--surface)] rounded-lg p-6 shadow-sm border border-[var(--rule)] mb-8">
+      <div
+        id="add-assignment-form"
+        className="bg-[var(--surface)] rounded-lg p-6 shadow-sm border border-[var(--rule)] mb-8"
+      >
         <h2 className="text-sm font-semibold text-[var(--foreground)] mb-4">Add Assignment</h2>
         <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-2 gap-3 mb-4">
           <div className="col-span-2">
@@ -162,13 +185,12 @@ export default function AssignmentsPage() {
       </div>
 
       {/* Assignment List */}
-      <div className="bg-[var(--surface)] rounded-lg shadow-sm border border-[var(--rule)] divide-y divide-[var(--rule)]">
-        {!data ? (
-          <div className="p-4"><TableSkeleton rows={4} /></div>
-        ) : data.length === 0 ? (
-          <p className="p-6 text-sm text-[var(--muted-2)]">No assignments yet. Add one above.</p>
-        ) : (
-          data.map((a: any) => (
+      {data && data.length === 0 ? null : (
+        <div className="bg-[var(--surface)] rounded-lg shadow-sm border border-[var(--rule)] divide-y divide-[var(--rule)]">
+          {!data ? (
+            <div className="p-4"><TableSkeleton rows={4} /></div>
+          ) : (
+            data.map((a: any) => (
             <div
               key={a.id}
               className={`p-4 flex items-center justify-between gap-4 transition-colors hover:bg-[var(--surface-hover)] ${
@@ -211,9 +233,10 @@ export default function AssignmentsPage() {
                 </button>
               </div>
             </div>
-          ))
-        )}
-      </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -6,8 +6,12 @@ import api from "@/lib/api"
 import { CalendarIcon, PlusIcon, TrashIcon } from "@/components/icons"
 import toast from "react-hot-toast"
 import { KanbanSkeleton } from "@/components/skeletons"
+import { focusForm } from "@/lib/focusForm"
 
 const fetcher = (url: string) => api.get(url).then(r => r.data)
+
+const emptyStateButtonClass =
+  "inline-flex items-center bg-[var(--accent)] text-black px-4 py-2 rounded-md text-sm font-semibold cursor-pointer transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2"
 
 const STATUS_COLORS: Record<string, string> = {
   applied: "bg-[var(--callout-blue)] text-[var(--callout-blue-text)]",
@@ -125,8 +129,27 @@ export default function JobsPage() {
         {data ? `${data.length} application${data.length === 1 ? "" : "s"} tracked` : "Loading…"}
       </p>
 
+      {/* Empty state: nothing tracked yet */}
+      {data && data.length === 0 && (
+        <div className="mb-6 border border-dashed border-[var(--rule)] rounded-md p-6 text-center">
+          <p className="text-sm text-[var(--muted)] mb-3">
+            Track every application here so no follow-up slips through.
+          </p>
+          <button
+            type="button"
+            onClick={() => focusForm("add-job-form")}
+            className={emptyStateButtonClass}
+          >
+            Add the first application
+          </button>
+        </div>
+      )}
+
       {/* Add Form */}
-      <div className="bg-[var(--surface)] rounded-lg p-5 shadow-sm border border-[var(--rule)] mb-8">
+      <div
+        id="add-job-form"
+        className="bg-[var(--surface)] rounded-lg p-5 shadow-sm border border-[var(--rule)] mb-8"
+      >
         <h2 className="text-sm font-semibold text-[var(--foreground)] mb-3">Add Application</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
           <input
@@ -164,7 +187,7 @@ export default function JobsPage() {
       {/* Kanban columns */}
       {!data ? (
         <KanbanSkeleton />
-      ) : (
+      ) : data.length === 0 ? null : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           {STATUSES.map(status => {
             const jobs = data.filter((j: any) => j.status === status)

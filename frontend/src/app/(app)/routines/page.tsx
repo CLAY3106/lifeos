@@ -3,8 +3,12 @@ import { useState } from "react"
 import useSWR from "swr"
 import api from "@/lib/api"
 import { ActivityIcon, PlusIcon, TrashIcon } from "@/components/icons"
+import { focusForm } from "@/lib/focusForm"
 
 const fetcher = (url: string) => api.get(url).then(r => r.data)
+
+const emptyStateButtonClass =
+  "inline-flex items-center bg-[var(--accent)] text-white px-4 py-2 rounded-md text-sm font-medium cursor-pointer transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2"
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
@@ -83,8 +87,27 @@ export default function RoutinesPage() {
         <h1 className="text-2xl font-bold text-[var(--foreground)]">Routines</h1>
       </div>
 
+      {/* Empty state: no routines yet */}
+      {data && data.length === 0 && (
+        <div className="mb-6 border border-dashed border-[var(--rule)] rounded-md p-6 text-center">
+          <p className="text-sm text-[var(--muted)] mb-3">
+            Build a routine once and reuse it every week.
+          </p>
+          <button
+            type="button"
+            onClick={() => focusForm("add-routine-form")}
+            className={emptyStateButtonClass}
+          >
+            Create the first routine
+          </button>
+        </div>
+      )}
+
       {/* Create Routine Form */}
-      <div className="bg-[var(--surface)] rounded-lg p-6 shadow-sm border border-[var(--rule)] mb-8">
+      <div
+        id="add-routine-form"
+        className="bg-[var(--surface)] rounded-lg p-6 shadow-sm border border-[var(--rule)] mb-8"
+      >
         <h2 className="text-sm font-semibold text-[var(--foreground)] mb-4">New Routine</h2>
         <div className="flex gap-3">
           <input
@@ -106,12 +129,7 @@ export default function RoutinesPage() {
 
       {/* Routines List */}
       <div className="space-y-4">
-        {!data || data.length === 0 ? (
-          <div className="bg-[var(--surface)] rounded-lg border border-dashed border-[var(--rule)] py-12 text-center">
-            <ActivityIcon className="w-8 h-8 mx-auto mb-3 text-[var(--muted-2)]" />
-            <p className="text-sm text-[var(--muted)]">No routines yet. Create one above.</p>
-          </div>
-        ) : (
+        {!data || data.length === 0 ? null : (
           data.map((routine: any) => (
             <div
               key={routine.id}

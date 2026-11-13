@@ -7,6 +7,10 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Lege
 import { Bar } from "react-chartjs-2"
 import { ListSkeleton } from "@/components/skeletons"
 import toast from "react-hot-toast"
+import { focusForm } from "@/lib/focusForm"
+
+const emptyStateButtonClass =
+  "inline-flex items-center bg-[var(--accent)] text-white px-4 py-2 rounded-md text-sm font-medium cursor-pointer transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2"
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend)
 
@@ -290,8 +294,27 @@ export default function FitnessPage() {
             </div>
           )}
 
+          {/* Empty state: no workouts yet */}
+          {workouts && workouts.length === 0 && (
+            <div className="mb-6 border border-dashed border-[var(--rule)] rounded-md p-6 text-center">
+              <p className="text-sm text-[var(--muted)] mb-3">
+                Log sessions here to see your weekly volume add up.
+              </p>
+              <button
+                type="button"
+                onClick={() => focusForm("add-workout-form")}
+                className={emptyStateButtonClass}
+              >
+                Log the first workout
+              </button>
+            </div>
+          )}
+
           {/* Add Form */}
-          <div className="bg-[var(--surface)] border border-[var(--rule)] rounded-xl p-6 shadow-sm mb-8">
+          <div
+            id="add-workout-form"
+            className="bg-[var(--surface)] border border-[var(--rule)] rounded-xl p-6 shadow-sm mb-8"
+          >
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-[var(--foreground)]">Log Workout</h2>
               {loggingFromRoutine && (
@@ -336,16 +359,12 @@ export default function FitnessPage() {
           </div>
 
           {/* Workout List */}
-          <div className="bg-[var(--surface)] border border-[var(--rule)] rounded-xl shadow-sm divide-y divide-[var(--rule)] overflow-hidden">
-            {!workouts ? (
-              <div className="p-4"><ListSkeleton count={3} /></div>
-            ) : workouts.length === 0 ? (
-              <div className="p-10 flex flex-col items-center text-center gap-2">
-                <ActivityIcon className="w-6 h-6 text-[var(--muted-2)]" />
-                <p className="text-sm text-[var(--muted-2)]">No workouts yet. Log one above.</p>
-              </div>
-            ) : (
-              workouts.map((w: any) => (
+          {workouts && workouts.length === 0 ? null : (
+            <div className="bg-[var(--surface)] border border-[var(--rule)] rounded-xl shadow-sm divide-y divide-[var(--rule)] overflow-hidden">
+              {!workouts ? (
+                <div className="p-4"><ListSkeleton count={3} /></div>
+              ) : (
+                workouts.map((w: any) => (
                 <div key={w.id} className="p-4 flex items-center justify-between gap-4 hover:bg-[var(--surface-hover)] transition-colors">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -365,17 +384,37 @@ export default function FitnessPage() {
                     Delete
                   </button>
                 </div>
-              ))
-            )}
-          </div>
+                ))
+              )}
+            </div>
+          )}
         </>
       )}
 
       {/* ===== ROUTINES TAB ===== */}
       {tab === "routines" && (
         <>
+          {/* Empty state: no routines yet */}
+          {routines && routines.length === 0 && (
+            <div className="mb-6 border border-dashed border-[var(--rule)] rounded-md p-6 text-center">
+              <p className="text-sm text-[var(--muted)] mb-3">
+                Build a routine once and reuse it every week.
+              </p>
+              <button
+                type="button"
+                onClick={() => focusForm("add-routine-form")}
+                className={emptyStateButtonClass}
+              >
+                Create the first routine
+              </button>
+            </div>
+          )}
+
           {/* Create Routine */}
-          <div className="bg-[var(--surface)] rounded-lg p-6 shadow-sm border border-[var(--rule)] mb-8">
+          <div
+            id="add-routine-form"
+            className="bg-[var(--surface)] rounded-lg p-6 shadow-sm border border-[var(--rule)] mb-8"
+          >
             <h2 className="text-sm font-semibold text-[var(--foreground)] mb-4">New Routine</h2>
             <div className="flex gap-3">
               <input
@@ -399,12 +438,7 @@ export default function FitnessPage() {
           <div className="space-y-4">
             {!routines ? (
               <ListSkeleton count={2} />
-            ) : routines.length === 0 ? (
-              <div className="bg-[var(--surface)] rounded-lg border border-dashed border-[var(--rule)] py-12 text-center">
-                <ActivityIcon className="w-8 h-8 mx-auto mb-3 text-[var(--muted-2)]" />
-                <p className="text-sm text-[var(--muted)]">No routines yet. Create one above.</p>
-              </div>
-            ) : (
+            ) : routines.length === 0 ? null : (
               routines.map((routine: any) => (
                 <div key={routine.id} className="bg-[var(--surface)] rounded-lg border border-[var(--rule)] shadow-sm overflow-hidden">
                   <div className="px-5 py-4 flex items-center justify-between border-b border-[var(--rule)]">
