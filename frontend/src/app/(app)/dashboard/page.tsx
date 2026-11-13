@@ -1,5 +1,6 @@
 "use client"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import useSWR from "swr"
 import api from "@/lib/api"
 import {
@@ -16,6 +17,7 @@ import {
 import { Callout, StatCallout, SectionHeading, Tag, EmptyRow } from "@/components/primitives"
 import toast from "react-hot-toast"
 import { DashboardSkeleton } from "@/components/skeletons"
+import SetupChecklist from "@/components/SetupChecklist"
 import {
   BRIEFING_QUICK_COMPLETE,
   QUICK_ACTION_COMPLETED,
@@ -24,6 +26,11 @@ import {
 } from "@/lib/useExperiment"
 
 const fetcher = (url: string) => api.get(url).then(r => r.data)
+
+// Only the fields this page needs from GET /auth/me.
+interface MeBrief {
+  onboarding_completed_at: string | null
+}
 
 function greeting() {
   const h = new Date().getHours()
@@ -58,11 +65,18 @@ function ProgressRing({ complete }: { complete: boolean }) {
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [showFullBriefing, setShowFullBriefing] = useState(false)
   const [completingAction, setCompletingAction] = useState<string | null>(null)
   const { data, isLoading, mutate: mutateDashboard } = useSWR("/dashboard", fetcher, {
     refreshInterval: 30000,
   })
+
+  // Accounts that never finished onboarding belong in the wizard.
+  const { data: me } = useSWR<MeBrief>("/auth/me", fetcher)
+  useEffect(() => {
+    if (me && !me.onboarding_completed_at) router.replace("/onboarding")
+  }, [me, router])
 
   const { data: aiData, mutate: refreshAI, isValidating: aiLoading } = useSWR(
     "/ai/briefing",
@@ -132,6 +146,11 @@ export default function DashboardPage() {
           {greeting()}, {data.user.name}
         </h1>
         <p className="text-sm text-[var(--muted)] mb-8">{longDate()}</p>
+
+        <SetupChecklist
+          wizardCompleted={Boolean(me?.onboarding_completed_at)}
+          briefingRendered={Boolean(aiData)}
+        />
 
         {/* AI Briefing callout */}
         <Callout tone="green" icon={LightbulbIcon} className="mb-8">
