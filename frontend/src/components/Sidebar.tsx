@@ -1,22 +1,37 @@
 "use client"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import useSWR from "swr"
 import api from "@/lib/api"
 import { useRouter } from "next/navigation"
 import { LeafIcon, HomeIcon, BookIcon, BriefcaseIcon, ActivityIcon, WalletIcon, LogOutIcon, UserIcon } from "@/components/icons"
 import ThemeToggle from "@/components/ThemeToggle"
+import { type ModuleKey } from "@/lib/modules"
+
+const fetcher = (url: string) => api.get(url).then(r => r.data)
 
 const links = [
-  { href: "/dashboard", label: "Dashboard", Icon: HomeIcon },
-  { href: "/assignments", label: "Assignments", Icon: BookIcon },
-  { href: "/jobs", label: "Jobs", Icon: BriefcaseIcon },
-  { href: "/fitness", label: "Fitness", Icon: ActivityIcon },
-  { href: "/finance", label: "Finance", Icon: WalletIcon },
+  { href: "/dashboard", label: "Dashboard", Icon: HomeIcon, module: null as ModuleKey | null },
+  { href: "/assignments", label: "Assignments", Icon: BookIcon, module: "academics" as ModuleKey },
+  { href: "/jobs", label: "Jobs", Icon: BriefcaseIcon, module: "jobs" as ModuleKey },
+  { href: "/fitness", label: "Fitness", Icon: ActivityIcon, module: "fitness" as ModuleKey },
+  { href: "/finance", label: "Finance", Icon: WalletIcon, module: "finance" as ModuleKey },
 ]
 
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
+
+  // Until /auth/me resolves we show every link, so the nav never flashes empty
+  // and then fills in.
+  const { data: me } = useSWR("/auth/me", fetcher, { revalidateOnFocus: false })
+  const activeModules = me?.active_modules
+
+  const visibleLinks = links.filter(link => {
+    if (!link.module) return true
+    if (!activeModules) return true
+    return activeModules.includes(link.module)
+  })
 
   async function handleLogout() {
     await api.post("/auth/logout")
@@ -37,7 +52,7 @@ export default function Sidebar() {
           Workspace
         </p>
         <nav className="flex flex-col">
-          {links.map(link => {
+          {visibleLinks.map(link => {
             const active = pathname === link.href || pathname.startsWith(link.href + "/")
             const Icon = link.Icon
             return (
