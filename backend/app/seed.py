@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone, timedelta
 from app.database import SessionLocal
-from app.models.user import User
+from app.models.user import User, default_active_modules
 from app.models.assignment import Assignment, AssignmentStatus
 from app.models.job import JobApplication, JobStatus, JobStatusHistory
 from app.models.workout import Workout
@@ -63,6 +63,12 @@ def seed():
     # Check if demo user already exists
     existing = db.query(User).filter(User.email == "demo@lifeos.app").first()
     if existing:
+        # Existing databases predate onboarding: stamp completion so the
+        # demo account never sees the wizard. Idempotent and tiny.
+        if existing.onboarding_completed_at is None:
+            existing.onboarding_completed_at = datetime.now(timezone.utc)
+            db.commit()
+            print("Demo user marked as onboarded")
         print("Demo user already exists — skipping seed")
         db.close()
         return
@@ -76,7 +82,9 @@ def seed():
         hashed_password=hash_password("demo1234"),
         name="Alex",
         monthly_budget=300,
-        weekly_capacity_hours=40
+        weekly_capacity_hours=40,
+        onboarding_completed_at=now,
+        active_modules=default_active_modules(),
     )
     db.add(user)
     db.flush()
