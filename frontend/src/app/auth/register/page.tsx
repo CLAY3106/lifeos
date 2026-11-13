@@ -16,8 +16,10 @@ export default function RegisterPage() {
     setLoading(true)
     setError("")
     try {
-      await api.post("/auth/register", { name, email, password })
-      router.push("/dashboard")
+      const res = await api.post("/auth/register", { name, email, password })
+      // New accounts have never finished onboarding, so they start the wizard.
+      const done = Boolean(res.data?.onboarding_completed_at)
+      router.push(done ? "/dashboard" : "/onboarding")
     } catch (err: any) {
       setError(err.response?.data?.detail || "Registration failed")
     } finally {

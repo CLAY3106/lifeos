@@ -15,8 +15,10 @@ export default function LoginPage() {
     setLoading(true)
     setError("")
     try {
-      await api.post("/auth/login", creds ?? { email, password })
-      router.push("/dashboard")
+      const res = await api.post("/auth/login", creds ?? { email, password })
+      // Only accounts that finished onboarding go straight to the dashboard.
+      const done = Boolean(res.data?.user?.onboarding_completed_at)
+      router.push(done ? "/dashboard" : "/onboarding")
     } catch (err: any) {
       setError("Invalid email or password")
     } finally {
