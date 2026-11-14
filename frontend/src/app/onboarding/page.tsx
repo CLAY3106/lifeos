@@ -16,7 +16,9 @@ import {
   BookIcon,
   BriefcaseIcon,
   CheckIcon,
+  ClockIcon,
   LeafIcon,
+  PlusIcon,
   WalletIcon,
 } from "@/components/icons"
 
@@ -90,29 +92,29 @@ const WORKOUT_TYPES = ["Run", "Gym", "Yoga", "Basketball", "Swimming", "Cycling"
 
 const QUICK_FIELDS: Record<ModuleKey, FieldDef[]> = {
   academics: [
-    { name: "title", label: "Title", type: "text", placeholder: "Finish lab report" },
+    { name: "title", label: "Title", type: "text", placeholder: "e.g. Finish lab report" },
     { name: "due_date", label: "Due date", type: "date" },
-    { name: "course", label: "Course (optional)", type: "text", placeholder: "CS 101" },
+    { name: "course", label: "Course (optional)", type: "text", placeholder: "e.g. CS 101" },
   ],
   jobs: [
-    { name: "company", label: "Company", type: "text", placeholder: "Acme" },
-    { name: "role", label: "Role", type: "text", placeholder: "Software intern" },
+    { name: "company", label: "Company", type: "text", placeholder: "e.g. Acme" },
+    { name: "role", label: "Role", type: "text", placeholder: "e.g. Software intern" },
     { name: "applied_date", label: "Applied date", type: "date" },
   ],
   fitness: [
-    { name: "type", label: "Type", type: "text-datalist", placeholder: "Run, Gym, Yoga…", options: WORKOUT_TYPES.map(t => ({ value: t, label: t })) },
-    { name: "duration_mins", label: "Duration (minutes)", type: "number", placeholder: "30" },
-    { name: "notes", label: "Notes (optional)", type: "text", placeholder: "Leg day at the gym" },
+    { name: "type", label: "Type", type: "text-datalist", placeholder: "e.g. Run, Gym, Yoga", options: WORKOUT_TYPES.map(t => ({ value: t, label: t })) },
+    { name: "duration_mins", label: "Duration (minutes)", type: "number", placeholder: "e.g. 30" },
+    { name: "notes", label: "Notes (optional)", type: "text", placeholder: "e.g. Leg day at the gym" },
   ],
   finance: [
-    { name: "amount", label: "Amount", type: "number", placeholder: "12.50" },
+    { name: "amount", label: "Amount", type: "number", placeholder: "e.g. 12.50" },
     {
       name: "category",
       label: "Category",
       type: "select",
       options: EXPENSE_CATEGORIES.map(c => ({ value: c, label: c.charAt(0).toUpperCase() + c.slice(1) })),
     },
-    { name: "note", label: "Note (optional)", type: "text", placeholder: "Coffee" },
+    { name: "note", label: "Note (optional)", type: "text", placeholder: "e.g. Coffee" },
   ],
 }
 
@@ -200,6 +202,63 @@ function StepProgress({ step }: { step: number }) {
   )
 }
 
+function LimitField({
+  id,
+  label,
+  help,
+  Icon,
+  prefix,
+  suffix,
+  value,
+  onChange,
+}: {
+  id: string
+  label: string
+  help: string
+  Icon: IconType
+  prefix?: string
+  suffix: string
+  value: string
+  onChange: (v: string) => void
+}) {
+  return (
+    <div className="flex gap-4 rounded-xl border border-[var(--rule)] p-4 sm:p-5">
+      <span className="hidden sm:flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[var(--callout-gray)] text-[var(--muted)]">
+        <Icon className="w-6 h-6" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <label htmlFor={id} className="block text-[15px] font-semibold text-[var(--foreground)]">
+          {label}
+        </label>
+        <p id={`${id}-help`} className="text-sm text-[var(--muted)] mt-0.5 mb-3">
+          {help}
+        </p>
+        <div className="flex items-center rounded-lg border border-[var(--rule)] bg-[var(--surface)] transition-colors hover:border-[var(--muted-2)] focus-within:border-[var(--accent-strong)] focus-within:ring-2 focus-within:ring-[var(--accent-strong)]/30 max-w-xs">
+          {prefix && (
+            <span className="pl-3 text-base text-[var(--muted)]" aria-hidden="true">
+              {prefix}
+            </span>
+          )}
+          <input
+            id={id}
+            type="number"
+            inputMode="numeric"
+            min={0}
+            step={1}
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            aria-describedby={`${id}-help ${id}-unit`}
+            className={`min-h-11 w-full min-w-0 bg-transparent ${prefix ? "pl-1.5" : "pl-3"} pr-2 text-lg font-semibold tabular-nums text-[var(--foreground)] outline-none`}
+          />
+          <span id={`${id}-unit`} className="shrink-0 pr-3 text-sm text-[var(--muted)]">
+            {suffix}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function InlineError({ children }: { children: React.ReactNode }) {
   return (
     <p className="flex items-start gap-1.5 text-sm text-[var(--danger)]" role="alert">
@@ -246,6 +305,22 @@ function WizardSkeleton() {
   )
 }
 
+const QUICK_LIMIT = 3
+
+// Short human label for an added item, shown as a chip on step 3.
+function chipLabel(moduleKey: ModuleKey, v: Record<string, string>): string {
+  switch (moduleKey) {
+    case "academics":
+      return v.title.trim()
+    case "jobs":
+      return `${v.role.trim()} at ${v.company.trim()}`
+    case "fitness":
+      return `${v.type.trim()}, ${v.duration_mins} min`
+    case "finance":
+      return `$${Number(v.amount).toFixed(2)} ${v.category}`
+  }
+}
+
 function emptyQuickValues(): Record<ModuleKey, Record<string, string>> {
   const today = todayLocalDate()
   return {
@@ -278,14 +353,14 @@ function MiniForm({
   onSubmit: (e: FormEvent<HTMLFormElement>) => void
 }) {
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-3">
-      {fields.map(field => {
+    <form onSubmit={onSubmit} noValidate className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-3">
+      {fields.map((field, i) => {
         const id = `${idPrefix}-${field.name}`
         const handle = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
           onChange(field.name, e.target.value)
         return (
-          <div key={field.name}>
-            <label htmlFor={id} className="block text-xs font-medium text-[var(--muted)] mb-1">
+          <div key={field.name} className={i === 0 ? "sm:col-span-2" : undefined}>
+            <label htmlFor={id} className="block text-sm font-medium text-[var(--foreground)] mb-1">
               {field.label}
             </label>
             {field.type === "select" ? (
@@ -320,13 +395,21 @@ function MiniForm({
         )
       })}
       {error && (
-        <p className="text-xs text-[var(--danger)]" role="alert">
-          {error}
-        </p>
+        <div className="sm:col-span-2">
+          <InlineError>{error}</InlineError>
+        </div>
       )}
-      <button type="submit" disabled={disabled || busy} className={primaryButtonClass}>
-        {busy ? "Adding…" : submitLabel}
-      </button>
+      <div className="sm:col-span-2 pt-1">
+        <button
+          type="submit"
+          disabled={disabled || busy}
+          aria-busy={busy}
+          className={`inline-flex items-center justify-center gap-1.5 min-h-11 w-full sm:w-auto px-4 rounded-lg border border-[var(--accent-strong)] text-sm font-semibold text-[var(--accent-strong)] cursor-pointer transition-colors hover:bg-[var(--callout-green)] disabled:opacity-50 disabled:cursor-not-allowed ${focusRing} focus-visible:ring-offset-[var(--surface)]`}
+        >
+          {!busy && <PlusIcon className="w-4 h-4" />}
+          {busy ? "Adding…" : submitLabel}
+        </button>
+      </div>
     </form>
   )
 }
@@ -352,6 +435,9 @@ export default function OnboardingPage() {
   })
   const [addedCount, setAddedCount] = useState(0)
   const [savingModule, setSavingModule] = useState<ModuleKey | null>(null)
+  // Display only: which quick-add form is open and what has been added so far.
+  const [activeQuick, setActiveQuick] = useState<ModuleKey | null>(null)
+  const [addedItems, setAddedItems] = useState<{ module: ModuleKey; label: string }[]>([])
 
   const [briefing, setBriefing] = useState<Briefing | null>(null)
   const [briefingLoading, setBriefingLoading] = useState(false)
@@ -532,6 +618,7 @@ export default function OnboardingPage() {
       await api.post(POST_PATHS[moduleKey], payload)
       setQuick(prev => ({ ...prev, [moduleKey]: emptyQuickValues()[moduleKey] }))
       setAddedCount(count => count + 1)
+      setAddedItems(prev => [...prev, { module: moduleKey, label: chipLabel(moduleKey, values) }])
     } catch {
       setQuickErr(prev => ({ ...prev, [moduleKey]: "Couldn't add that. Try again." }))
     } finally {
@@ -688,88 +775,142 @@ export default function OnboardingPage() {
 
           {step === 2 && (
             <div className="space-y-4">
-              <div>
-                <label htmlFor="onboarding-capacity" className="block text-sm font-medium text-[var(--foreground)] mb-1">
-                  Weekly capacity (hours)
-                </label>
-                <input
-                  id="onboarding-capacity"
-                  type="number"
-                  min={0}
-                  step={1}
-                  value={capacity}
-                  onChange={e => setCapacity(e.target.value)}
-                  className={inputClass}
-                />
-                <p className="text-xs text-[var(--muted)] mt-1">
-                  Hours a week you can realistically plan for.
-                </p>
-              </div>
+              <LimitField
+                id="onboarding-capacity"
+                label="Weekly capacity"
+                help="Hours a week you can realistically plan for, across everything you track."
+                Icon={ClockIcon}
+                suffix="hrs / week"
+                value={capacity}
+                onChange={setCapacity}
+              />
               {financeChosen && (
-                <div>
-                  <label htmlFor="onboarding-budget" className="block text-sm font-medium text-[var(--foreground)] mb-1">
-                    Monthly budget
-                  </label>
-                  <input
-                    id="onboarding-budget"
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={budget}
-                    onChange={e => setBudget(e.target.value)}
-                    className={inputClass}
-                  />
-                  <p className="text-xs text-[var(--muted)] mt-1">
-                    Drives the 50/30/20 envelopes.
-                  </p>
-                </div>
+                <LimitField
+                  id="onboarding-budget"
+                  label="Monthly budget"
+                  help="Drives your 50/30/20 envelopes for needs, wants and savings."
+                  Icon={WalletIcon}
+                  prefix="$"
+                  suffix="/ month"
+                  value={budget}
+                  onChange={setBudget}
+                />
               )}
             </div>
           )}
 
           {step === 3 && (
             <div className="space-y-5">
-              <p className="text-xs text-[var(--muted)]">
-                Optional. Add up to 3 items now, or skip and add them later.
-                {addedCount > 0 && ` ${addedCount} of 3 added.`}
-              </p>
-              {chosen.length === 0 && (
-                <p className="text-sm text-[var(--muted-2)]">
+              {/* Added so far: progress meter plus a chip per item */}
+              <div className="rounded-xl bg-[var(--callout-gray)] px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm text-[var(--foreground)]" aria-live="polite">
+                    {addedCount === 0
+                      ? "Optional. Add up to 3 things."
+                      : addedCount >= QUICK_LIMIT
+                        ? "All set. That is plenty to start with."
+                        : `${addedCount} of ${QUICK_LIMIT} added`}
+                  </p>
+                  <span className="flex gap-1" aria-hidden="true">
+                    {Array.from({ length: QUICK_LIMIT }).map((_, i) => (
+                      <span
+                        key={i}
+                        className={`h-2 w-5 rounded-full transition-colors duration-300 motion-reduce:transition-none ${
+                          i < addedCount ? "bg-[var(--accent-strong)]" : "bg-[var(--rule)]"
+                        }`}
+                      />
+                    ))}
+                  </span>
+                </div>
+                {addedItems.length > 0 && (
+                  <ul className="mt-3 flex flex-wrap gap-2" aria-label="Added items">
+                    {addedItems.map((item, i) => {
+                      const ItemIcon = MODULE_META.find(m => m.key === item.module)?.Icon ?? CheckIcon
+                      return (
+                        <li
+                          key={i}
+                          className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[var(--callout-green)] py-1 pl-2 pr-3 text-sm text-[var(--callout-green-text)] motion-safe:animate-[chip-in_200ms_ease-out]"
+                        >
+                          <ItemIcon className="w-4 h-4 shrink-0" />
+                          <span className="truncate">{item.label}</span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
+
+              {chosen.length === 0 ? (
+                <p className="text-sm text-[var(--muted)]">
                   No areas selected, so there is nothing to add here.
                 </p>
+              ) : addedCount < QUICK_LIMIT ? (
+                (() => {
+                  // Stable display order, independent of the order modules were toggled.
+                  const quickModules = MODULE_META.map(m => m.key).filter(k => chosen.includes(k))
+                  const current =
+                    activeQuick && quickModules.includes(activeQuick) ? activeQuick : quickModules[0]
+                  return (
+                    <div>
+                      {quickModules.length > 1 && (
+                        <fieldset className="mb-4">
+                          <legend className="sr-only">What to add</legend>
+                          <div className="flex flex-wrap gap-2">
+                            {quickModules.map(moduleKey => {
+                              const meta = MODULE_META.find(m => m.key === moduleKey)
+                              if (!meta) return null
+                              const PillIcon = meta.Icon
+                              const selected = moduleKey === current
+                              return (
+                                <label
+                                  key={moduleKey}
+                                  className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium cursor-pointer transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--accent-strong)] has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-[var(--surface)] ${
+                                    selected
+                                      ? "border-[var(--accent)] bg-[var(--callout-green)] text-[var(--foreground)]"
+                                      : "border-[var(--rule)] text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="quick-module"
+                                    value={moduleKey}
+                                    checked={selected}
+                                    onChange={() => setActiveQuick(moduleKey)}
+                                    className="sr-only"
+                                  />
+                                  <PillIcon className="w-4 h-4" />
+                                  {meta.label}
+                                </label>
+                              )
+                            })}
+                          </div>
+                        </fieldset>
+                      )}
+                      <MiniForm
+                        key={current}
+                        idPrefix={`quick-${current}`}
+                        fields={QUICK_FIELDS[current]}
+                        values={quick[current]}
+                        disabled={addedCount >= QUICK_LIMIT}
+                        busy={savingModule === current}
+                        submitLabel={SUBMIT_LABELS[current]}
+                        error={quickErr[current]}
+                        onChange={(name, value) =>
+                          setQuick(prev => ({ ...prev, [current]: { ...prev[current], [name]: value } }))
+                        }
+                        onSubmit={e => {
+                          e.preventDefault()
+                          void handleQuickAdd(current)
+                        }}
+                      />
+                    </div>
+                  )
+                })()
+              ) : (
+                <p className="text-sm text-[var(--muted)]">
+                  You can add more any time from the dashboard. Continue to see your first briefing.
+                </p>
               )}
-              {chosen.map(moduleKey => {
-                const meta = MODULE_META.find(m => m.key === moduleKey)
-                if (!meta) return null
-                const ModuleIcon = meta.Icon
-                return (
-                  <div
-                    key={moduleKey}
-                    className="border border-[var(--rule)] rounded-md p-4 bg-[var(--surface)]"
-                  >
-                    <p className="flex items-center gap-1.5 text-sm font-medium text-[var(--foreground)] mb-3">
-                      <ModuleIcon className="w-4 h-4 text-[var(--muted)]" />
-                      {meta.label}
-                    </p>
-                    <MiniForm
-                      idPrefix={`quick-${moduleKey}`}
-                      fields={QUICK_FIELDS[moduleKey]}
-                      values={quick[moduleKey]}
-                      disabled={addedCount >= 3}
-                      busy={savingModule === moduleKey}
-                      submitLabel={SUBMIT_LABELS[moduleKey]}
-                      error={quickErr[moduleKey]}
-                      onChange={(name, value) =>
-                        setQuick(prev => ({ ...prev, [moduleKey]: { ...prev[moduleKey], [name]: value } }))
-                      }
-                      onSubmit={e => {
-                        e.preventDefault()
-                        void handleQuickAdd(moduleKey)
-                      }}
-                    />
-                  </div>
-                )
-              })}
             </div>
           )}
 
