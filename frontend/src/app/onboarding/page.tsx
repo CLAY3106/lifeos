@@ -8,10 +8,14 @@ import api from "@/lib/api"
 import { ALL_MODULES, type ModuleKey } from "@/lib/modules"
 import { recordWizardDone, todayLocalDate } from "@/lib/setupChecklist"
 import { Tag, type IconType } from "@/components/primitives"
+import { Skeleton } from "@/components/skeletons"
 import {
   ActivityIcon,
+  AlertCircleIcon,
+  ArrowRightIcon,
   BookIcon,
   BriefcaseIcon,
+  CheckIcon,
   LeafIcon,
   WalletIcon,
 } from "@/components/icons"
@@ -152,14 +156,95 @@ const expenseQuickSchema = z.object({
   note: z.string(),
 })
 
+const STEP_LABELS = ["Areas", "Limits", "Quick add", "Briefing"]
+
+const focusRing =
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-strong)] focus-visible:ring-offset-2"
+
 const inputClass =
-  "w-full border border-[var(--rule)] bg-[var(--surface)] text-[var(--foreground)] placeholder:text-[var(--muted-2)] rounded-md px-3 py-2 text-sm outline-none transition-colors focus:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent)]/40 disabled:opacity-60"
+  "w-full min-h-11 border border-[var(--rule)] bg-[var(--surface)] text-[var(--foreground)] placeholder:text-[var(--muted)] rounded-lg px-3 py-2 text-base sm:text-sm outline-none transition-colors hover:border-[var(--muted-2)] focus:border-[var(--accent-strong)] focus-visible:ring-2 focus-visible:ring-[var(--accent-strong)]/30 disabled:opacity-60 disabled:cursor-not-allowed"
 
-const primaryButtonClass =
-  "bg-[var(--accent)] text-white px-5 py-2 rounded-md text-sm font-medium cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]"
+const primaryButtonClass = `inline-flex items-center justify-center gap-2 min-h-11 bg-[var(--accent-strong)] text-[var(--on-accent)] px-5 rounded-lg text-sm font-semibold cursor-pointer transition-[opacity,transform] duration-150 hover:opacity-90 active:scale-[0.98] motion-reduce:transform-none disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 ${focusRing} focus-visible:ring-offset-[var(--surface)]`
 
-const secondaryButtonClass =
-  "text-sm text-[var(--muted)] hover:text-[var(--foreground)] px-2 py-2 rounded-md cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]"
+const secondaryButtonClass = `inline-flex items-center justify-center min-h-11 px-3 rounded-lg text-sm font-medium text-[var(--muted)] cursor-pointer transition-colors hover:text-[var(--foreground)] hover:bg-[var(--surface-hover)] disabled:opacity-50 disabled:cursor-not-allowed ${focusRing} focus-visible:ring-offset-[var(--surface)]`
+
+function StepProgress({ step }: { step: number }) {
+  const label = STEP_LABELS[step - 1]
+  return (
+    <div className="mb-8">
+      <div className="flex items-baseline justify-between gap-3 mb-2.5">
+        <p className="text-xs font-semibold tracking-wide text-[var(--accent-strong)]">
+          Step {step} of {STEP_LABELS.length}
+        </p>
+        <p className="text-xs text-[var(--muted)]">{label}</p>
+      </div>
+      <div
+        role="progressbar"
+        aria-label="Setup progress"
+        aria-valuemin={1}
+        aria-valuemax={STEP_LABELS.length}
+        aria-valuenow={step}
+        aria-valuetext={`Step ${step} of ${STEP_LABELS.length}: ${label}`}
+        className="grid grid-cols-4 gap-1.5"
+      >
+        {STEP_LABELS.map((l, i) => (
+          <span
+            key={l}
+            className={`h-1.5 rounded-full transition-colors duration-300 motion-reduce:transition-none ${
+              i < step ? "bg-[var(--accent-strong)]" : "bg-[var(--rule)]"
+            }`}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function InlineError({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="flex items-start gap-1.5 text-sm text-[var(--danger)]" role="alert">
+      <AlertCircleIcon className="w-4 h-4 shrink-0 mt-0.5" />
+      <span>{children}</span>
+    </p>
+  )
+}
+
+function Brand() {
+  return (
+    <div className="flex items-center gap-2">
+      <LeafIcon className="w-5 h-5 text-[var(--accent-strong)]" />
+      <span className="text-sm font-semibold text-[var(--foreground)]">LifeOS</span>
+    </div>
+  )
+}
+
+function WizardSkeleton() {
+  return (
+    <div className="min-h-dvh bg-[var(--background)] flex justify-center px-4 py-8 sm:py-16">
+      <div className="w-full max-w-xl" role="status" aria-label="Loading your setup">
+        <div className="flex items-center justify-between mb-4 min-h-11">
+          <Brand />
+        </div>
+        <div className="bg-[var(--surface)] border border-[var(--rule)] rounded-2xl shadow-sm p-6 sm:p-10">
+          <Skeleton className="h-3 w-24 mb-3" />
+          <div className="grid grid-cols-4 gap-1.5 mb-8">
+            {[0, 1, 2, 3].map(i => (
+              <Skeleton key={i} className="h-1.5 rounded-full" />
+            ))}
+          </div>
+          <Skeleton className="h-6 w-2/3 mb-3" />
+          <Skeleton className="h-4 w-1/2 mb-8" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[0, 1, 2, 3].map(i => (
+              <Skeleton key={i} className="h-20 rounded-xl" />
+            ))}
+          </div>
+        </div>
+        <span className="sr-only">Loading your setup</span>
+      </div>
+    </div>
+  )
+}
 
 function emptyQuickValues(): Record<ModuleKey, Record<string, string>> {
   const today = todayLocalDate()
@@ -276,6 +361,16 @@ export default function OnboardingPage() {
   // Guards the started event against React StrictMode double-mounting.
   const startedRef = useRef(false)
   const briefingRef = useRef(false)
+  // Move focus to the new step's heading so keyboard and screen reader users
+  // land at the top of the step instead of on a button that no longer exists.
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  const shownStepRef = useRef(step)
+
+  useEffect(() => {
+    if (shownStepRef.current === step) return
+    shownStepRef.current = step
+    headingRef.current?.focus()
+  }, [step])
 
   // Load the account, bounce anyone who already finished, and otherwise log
   // the start of the wizard once.
@@ -473,74 +568,65 @@ export default function OnboardingPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4">
-        <div className="bg-[var(--surface)] border border-[var(--rule)] rounded-xl shadow-sm p-8 max-w-md w-full text-center">
-          <p className="text-sm text-[var(--foreground)] mb-4">
-            We couldn&apos;t load your account. Please sign in again.
-          </p>
-          <a
-            href="/auth/login"
-            className="text-sm text-[var(--accent)] underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] rounded-sm"
-          >
-            Go to sign in
-          </a>
+      <div className="min-h-dvh flex justify-center bg-[var(--background)] px-4 py-8 sm:py-16">
+        <div className="w-full max-w-md">
+          <div className="flex items-center mb-4 min-h-11">
+            <Brand />
+          </div>
+          <div className="bg-[var(--surface)] border border-[var(--rule)] rounded-2xl shadow-sm p-6 sm:p-10 text-center">
+            <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--callout-red)] text-[var(--callout-red-text)]">
+              <AlertCircleIcon className="w-6 h-6" />
+            </span>
+            <h1 className="text-lg font-semibold text-[var(--foreground)] mb-1">
+              We couldn&apos;t load your account
+            </h1>
+            <p className="text-sm text-[var(--muted)] mb-6">
+              Your session may have expired. Sign in again to pick up where you left off.
+            </p>
+            <a href="/auth/login" className={primaryButtonClass}>
+              Go to sign in
+            </a>
+          </div>
         </div>
       </div>
     )
   }
 
   if (!me || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--background)]">
-        <p className="text-sm text-[var(--muted)]" role="status">
-          Loading…
-        </p>
-      </div>
-    )
+    return <WizardSkeleton />
   }
 
   const financeChosen = chosen.includes("finance")
 
   return (
-    <div className="min-h-screen bg-[var(--background)] flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-xl">
+    <div className="min-h-dvh bg-[var(--background)] flex justify-center px-4 py-6 sm:py-16">
+      <div className="w-full max-w-xl sm:my-auto">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <LeafIcon className="w-5 h-5 text-[var(--accent)]" />
-            <span className="text-sm font-semibold text-[var(--foreground)]">LifeOS</span>
-          </div>
+          <Brand />
           <button
             type="button"
             onClick={() => completeFlow(true)}
             disabled={completing}
-            className={secondaryButtonClass}
+            className={`${secondaryButtonClass} -mr-3 focus-visible:ring-offset-[var(--background)]`}
           >
             Skip setup
           </button>
         </div>
 
-        <div className="bg-[var(--surface)] border border-[var(--rule)] rounded-xl shadow-sm p-8">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-medium text-[var(--muted)] uppercase tracking-wide" aria-live="polite">
-              Step {step} of 4
-            </p>
-            {step === 3 && addedCount > 0 && (
-              <p className="text-xs text-[var(--muted-2)]">
-                {addedCount} of 3 added
-              </p>
-            )}
-          </div>
-          <div className="h-1 w-full bg-[var(--rule)] rounded-full overflow-hidden mb-6">
-            <div
-              className="h-full bg-[var(--accent)] transition-[width] duration-300"
-              style={{ width: `${(step / 4) * 100}%` }}
-            />
-          </div>
+        <div className="bg-[var(--surface)] border border-[var(--rule)] rounded-2xl shadow-sm px-5 py-6 sm:p-10">
+          <StepProgress step={step} />
 
-          <h1 className="text-xl font-semibold text-[var(--foreground)] mb-1">
+          <h1
+            ref={headingRef}
+            tabIndex={-1}
+            className="text-2xl font-semibold tracking-tight text-[var(--foreground)] mb-1.5 outline-none [text-wrap:balance]"
+          >
+            <span className="sr-only">
+              Step {step} of {STEP_LABELS.length}:{" "}
+            </span>
             {STEPS[step - 1].title}
           </h1>
-          <p className="text-sm text-[var(--muted)] mb-6">{STEPS[step - 1].blurb}</p>
+          <p className="text-[15px] text-[var(--muted)] mb-7">{STEPS[step - 1].blurb}</p>
 
           {step === 1 && (
             <fieldset>
@@ -551,31 +637,52 @@ export default function OnboardingPage() {
                   return (
                     <label
                       key={key}
-                      className={`flex items-start gap-3 border rounded-md p-4 cursor-pointer transition-colors ${
+                      className={`relative flex items-start gap-4 rounded-xl border p-4 cursor-pointer select-none transition-colors duration-150 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[var(--accent-strong)] has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-[var(--surface)] ${
                         checked
                           ? "border-[var(--accent)] bg-[var(--callout-green)]"
-                          : "border-[var(--rule)] bg-[var(--surface)] hover:bg-[var(--surface-hover)]"
+                          : "border-[var(--rule)] bg-[var(--surface)] hover:border-[var(--muted-2)] hover:bg-[var(--surface-hover)]"
                       }`}
                     >
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleModule(key)}
-                        className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--accent)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2"
+                        className="sr-only"
                       />
-                      <span className="min-w-0">
-                        <span className="flex items-center gap-1.5 text-sm font-medium text-[var(--foreground)]">
-                          <Icon className="w-4 h-4 text-[var(--muted)]" />
+                      <span
+                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                          checked
+                            ? "bg-[var(--surface)] text-[var(--accent-strong)]"
+                            : "bg-[var(--callout-gray)] text-[var(--muted)]"
+                        }`}
+                      >
+                        <Icon className="w-6 h-6" />
+                      </span>
+                      <span className="min-w-0 flex-1 pt-0.5 pr-6">
+                        <span className="block text-[15px] font-semibold text-[var(--foreground)]">
                           {label}
                         </span>
-                        <span className="block text-xs text-[var(--muted)] mt-0.5">
+                        <span className="block text-sm text-[var(--muted)] mt-0.5">
                           {moduleHint}
                         </span>
+                      </span>
+                      <span
+                        aria-hidden="true"
+                        className={`absolute top-4 right-4 flex h-5 w-5 items-center justify-center rounded-full border-2 transition-colors ${
+                          checked
+                            ? "border-[var(--accent-strong)] bg-[var(--accent-strong)] text-[var(--on-accent)]"
+                            : "border-[var(--muted)] bg-[var(--surface)]"
+                        }`}
+                      >
+                        {checked && <CheckIcon className="w-3 h-3 [stroke-width:3]" />}
                       </span>
                     </label>
                   )
                 })}
               </div>
+              <p className="mt-4 text-sm text-[var(--muted)]" aria-live="polite">
+                {chosen.length} of {MODULE_META.length} selected
+              </p>
             </fieldset>
           )}
 
@@ -624,6 +731,7 @@ export default function OnboardingPage() {
             <div className="space-y-5">
               <p className="text-xs text-[var(--muted)]">
                 Optional. Add up to 3 items now, or skip and add them later.
+                {addedCount > 0 && ` ${addedCount} of 3 added.`}
               </p>
               {chosen.length === 0 && (
                 <p className="text-sm text-[var(--muted-2)]">
@@ -718,29 +826,35 @@ export default function OnboardingPage() {
           )}
 
           {hint && (
-            <p className="text-xs text-[var(--danger)] mt-4" role="alert">
-              {hint}
-            </p>
+            <div className="mt-4">
+              <InlineError>{hint}</InlineError>
+            </div>
           )}
           {syncNote && (
-            <p className="text-xs text-[var(--muted)] mt-2" role="status">
-              {syncNote}
+            <p
+              className="mt-4 flex items-start gap-2 rounded-lg bg-[var(--callout-yellow)] px-3 py-2.5 text-sm text-[var(--callout-yellow-text)]"
+              role="status"
+            >
+              <AlertCircleIcon className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{syncNote}</span>
             </p>
           )}
 
-          <div className="mt-8 pt-5 border-t border-[var(--rule)] flex items-center justify-between gap-3">
+          <div className="mt-8 pt-6 border-t border-[var(--rule)] flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             {step < 4 ? (
               <>
-                <button type="button" onClick={skipStep} className={secondaryButtonClass}>
-                  Skip
+                <button type="button" onClick={skipStep} className={`${secondaryButtonClass} sm:-ml-3`}>
+                  Skip this step
                 </button>
                 <button
                   type="button"
                   onClick={() => void nextStep()}
                   disabled={navBusy}
-                  className={primaryButtonClass}
+                  aria-busy={navBusy}
+                  className={`${primaryButtonClass} w-full sm:w-auto`}
                 >
-                  {navBusy ? "Saving…" : "Next"}
+                  {navBusy ? "Saving…" : "Continue"}
+                  {!navBusy && <ArrowRightIcon className="w-4 h-4" />}
                 </button>
               </>
             ) : (
