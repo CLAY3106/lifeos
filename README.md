@@ -25,6 +25,7 @@ Built as a portfolio project to demonstrate full-stack, cloud, and AI engineerin
 | Workout log | Quick-add sessions, routines with exercises, streak counter, weekly volume chart, link workouts to routines | — |
 | Finance tracker | Envelope budgeting (50/30/20), transactions with search, location tracking, Chart.js breakdown | **Mental Accounting** — 50% needs / 30% wants / 20% savings |
 | AI daily briefing | **RAG-grounded** cross-domain insight — deterministic scoring picks the top 3 priorities, hybrid retrieval supplies the evidence, Claude writes the phrasing. Shows retrieval sources and falls back to scoring if AI is down | **Paradox of Choice** — AI reduces 4 domains to 3 actionable items |
+| Onboarding | 4-step setup wizard (pick your areas, set limits, quick-add items, first AI briefing), setup checklist on the dashboard, empty states on every page | **Endowed Progress**: the checklist starts partly complete |
 | A/B testing | Deterministic SHA-256 bucketing, idempotent exposures, conversion events, and two-proportion z-test results. Live experiment `briefing_quick_complete` tests one-click assignment completion from the briefing | — |
 | Activity log | Automatic tracking of workouts, expenses, assignments, job changes | — |
 | Profile | View account info, budget settings, weekly capacity | — |
@@ -48,7 +49,7 @@ Built as a portfolio project to demonstrate full-stack, cloud, and AI engineerin
 | Experimentation | SHA-256 bucketing + two-proportion z-test | Deterministic assignment, exposure-based denominators, no external service |
 | Frontend hosting | Vercel | Zero config, auto-deploys, global CDN |
 | Backend hosting | Render.com | Free HTTPS, Docker support, auto-deploys |
-| CI/CD | GitHub Actions | Auto deploy on push to main |
+| CI/CD | GitHub Actions | Tests, lint, type-check and build on every push and PR; auto deploy on push to main |
 | Containers | Docker + Docker Compose | Consistent local dev environment |
 
 ---
@@ -196,7 +197,7 @@ The live experiment, `briefing_quick_complete`, tests whether one-click **Mark d
 15 tables. All tables have `created_at` and `updated_at` timestamps. All tables except `users` and `experiments` have a `user_id` foreign key. All primary keys are UUIDs.
 
 ```
-users                — id, email, hashed_password, name, monthly_budget, weekly_capacity_hours
+users                — id, email, hashed_password, name, monthly_budget, weekly_capacity_hours, onboarding_completed_at, active_modules
 assignments          — id, user_id, title, course, due_date, estimated_hours, status, deleted_at
 job_applications     — id, user_id, company, role, applied_date, status, followup_date, notes
 job_status_history   — id, job_id, from_status, to_status, changed_at, notes
@@ -226,7 +227,8 @@ activity_logs        — id, user_id, action, entity_type, entity_id, details, c
 | POST | `/auth/login` | Login, sets JWT cookie |
 | POST | `/auth/logout` | Clears cookie |
 | GET | `/auth/me` | Returns current user |
-| PATCH | `/auth/me` | Update name, budget, capacity, password |
+| PATCH | `/auth/me` | Update name, budget, capacity, password, active modules, onboarding completion |
+| POST | `/onboarding/events` | Log an onboarding wizard event (started, step completed, skipped, completed, first briefing viewed) |
 
 ### Assignments
 | Method | Endpoint | Description |

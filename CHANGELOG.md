@@ -4,6 +4,22 @@ A running log of engineering decisions, problems encountered, and how they were 
 
 ---
 
+## November 2026: Quality, onboarding, mobile
+
+- **Retrieval eval**: 30 labeled queries (lexical, semantic, mixed) score vector, keyword and hybrid search on recall@5, MRR and hit@1.
+  **Problem:** keyword search used `plainto_tsquery`, which ANDs every word, so "upcoming interviews" matched nothing.
+  **Fix:** OR the query lexemes and let `ts_rank_cd` rank. Keyword recall@5 went from 0.417 to 0.683.
+- **AI cost logging**: costs were priced at old Claude 3 Haiku rates and under-reported 4x. Prices now live in one table (`ai_cost.py`), and an unpriced model raises instead of logging $0.
+- **Abuse guard**: `/ai/refresh` skipped the cache with no limit, so the public demo account could run up unbounded API spend. Now capped at 10/day.
+- **UTC bug**: month bounds used the server's local date while `spent_at` is UTC, so expenses near a month boundary dropped out of "this month" on non-UTC hosts. Fixed and tested across time zones.
+- **CI**: GitHub Actions runs backend tests and frontend lint, type-check and build on every push and PR (actions pinned to SHAs, read-only token).
+- **Onboarding**: 4-step wizard to a first AI briefing, setup checklist, empty states, per-user module visibility. Empty accounts never call the AI.
+  **Problem:** if saving completion failed, the wizard still marked itself done locally and the dashboard bounced the user back.
+  **Fix:** the server save is the source of truth; local flags are written only after it succeeds.
+- **Mobile**: the sidebar was a fixed 240px and pages had 64px side padding, so the app was unusable on phones. Now a sticky sidebar on desktop and a top bar with a drawer on mobile.
+
+---
+
 ## Week 1 — Initial Build (March 27-29, 2026)
 
 ### Day 1 — Design & Planning
@@ -161,7 +177,7 @@ Updated `api.ts` to use `/api` as the base URL in production and `http://localho
 ```
 Frontend:  Vercel (https://lifeos-lac.vercel.app)
 Backend:   Render.com (https://lifeos-zggd.onrender.com)
-Database:  Render PostgreSQL
+Database:  Neon PostgreSQL (moved from Render PostgreSQL)
 CI/CD:     GitHub Actions → Render + Vercel
 ```
 
