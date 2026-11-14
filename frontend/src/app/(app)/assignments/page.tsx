@@ -102,7 +102,7 @@ export default function AssignmentsPage() {
   const errorClass = "border-[var(--danger)]"
 
   return (
-    <div className="max-w-3xl mx-auto px-16 py-16">
+    <div className="max-w-3xl mx-auto px-4 sm:px-8 md:px-16 py-16">
       <div className="flex items-center gap-3 mb-8">
         <div className="w-10 h-10 rounded-lg bg-[var(--callout-blue)] flex items-center justify-center shrink-0">
           <BookIcon className="w-5 h-5 text-[var(--foreground)]" />

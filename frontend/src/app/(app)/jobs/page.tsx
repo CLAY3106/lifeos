@@ -121,7 +121,7 @@ export default function JobsPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-16 py-16">
+    <div className="max-w-5xl mx-auto px-4 sm:px-8 md:px-16 py-16">
       <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)] mb-1">
         Job Applications
       </h1>

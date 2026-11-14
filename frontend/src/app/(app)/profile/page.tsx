@@ -10,7 +10,7 @@ export default function ProfilePage() {
 
   if (!user) {
     return (
-      <div className="max-w-3xl mx-auto px-16 py-16">
+      <div className="max-w-3xl mx-auto px-4 sm:px-8 md:px-16 py-16">
         <div className="animate-pulse space-y-4">
           <div className="h-8 w-32 bg-[var(--callout-gray)] rounded" />
           <div className="h-40 bg-[var(--callout-gray)] rounded-md" />
@@ -20,7 +20,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-16 py-16">
+    <div className="max-w-3xl mx-auto px-4 sm:px-8 md:px-16 py-16">
       <div className="flex items-center gap-3 mb-8">
         <div className="w-10 h-10 rounded-full bg-[var(--callout-blue)] flex items-center justify-center">
           <UserIcon className="w-5 h-5 text-[var(--foreground)]" />

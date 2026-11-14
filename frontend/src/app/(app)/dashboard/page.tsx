@@ -120,7 +120,7 @@ export default function DashboardPage() {
   }
   if (!data) {
     return (
-      <div className="max-w-5xl mx-auto px-16 py-16">
+      <div className="max-w-5xl mx-auto px-4 sm:px-8 md:px-16 py-16">
         <div className="bg-[var(--callout-red)] rounded-md p-4 flex gap-3">
           <p className="text-sm text-[var(--foreground)]">Failed to load dashboard data. Please try again.</p>
         </div>
@@ -146,7 +146,7 @@ export default function DashboardPage() {
     showAssignments || showJobStats || showFitnessStats || showFinanceStats
 
   return (
-    <div className="max-w-5xl mx-auto px-16">
+    <div className="max-w-5xl mx-auto px-4 sm:px-8 md:px-16">
       {/* Notion-style cover strip */}
       <div className="h-28 bg-gradient-to-r from-[var(--callout-green)] via-[var(--callout-blue)] to-[var(--callout-purple)]" />
 

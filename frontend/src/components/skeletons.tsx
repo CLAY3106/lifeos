@@ -39,7 +39,7 @@ export function ListSkeleton({ count = 3 }: { count?: number }) {
 
 export function DashboardSkeleton() {
   return (
-    <div className="max-w-5xl mx-auto px-16">
+    <div className="max-w-5xl mx-auto px-4 sm:px-8 md:px-16">
       <div className="h-28 bg-[var(--callout-gray)] rounded-t-lg" />
       <div className="-mt-8 space-y-6">
         <Skeleton className="w-11 h-11 rounded-full" />

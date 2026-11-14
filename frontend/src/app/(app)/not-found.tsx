@@ -4,7 +4,7 @@ import { LeafIcon } from "@/components/icons"
 
 export default function NotFound() {
   return (
-    <div className="max-w-3xl mx-auto px-16 py-16 flex flex-col items-center text-center">
+    <div className="max-w-3xl mx-auto px-4 sm:px-8 md:px-16 py-16 flex flex-col items-center text-center">
       <div className="w-16 h-16 rounded-full bg-[var(--callout-gray)] flex items-center justify-center mb-6">
         <LeafIcon className="w-8 h-8 text-[var(--muted-2)]" />
       </div>

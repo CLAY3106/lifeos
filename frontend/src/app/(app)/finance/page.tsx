@@ -274,7 +274,7 @@ export default function FinancePage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-16 py-16">
+    <div className="max-w-3xl mx-auto px-4 sm:px-8 md:px-16 py-16">
       <div className="flex items-center gap-2 mb-6">
         <WalletIcon className="w-6 h-6 text-[var(--accent)]" />
         <h1 className="text-2xl font-bold text-[var(--foreground)]">Finance</h1>

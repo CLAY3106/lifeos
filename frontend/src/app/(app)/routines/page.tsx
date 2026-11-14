@@ -79,7 +79,7 @@ export default function RoutinesPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-16 py-16">
+    <div className="max-w-3xl mx-auto px-4 sm:px-8 md:px-16 py-16">
       <div className="flex items-center gap-2.5 mb-8">
         <div className="w-10 h-10 rounded-lg bg-[var(--callout-purple)] flex items-center justify-center shrink-0">
           <ActivityIcon className="w-5 h-5 text-[var(--foreground)]" />

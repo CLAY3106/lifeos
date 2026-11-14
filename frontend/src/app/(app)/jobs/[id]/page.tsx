@@ -48,7 +48,7 @@ export default function JobDetailPage() {
 
   if (error?.response?.status === 404) {
     return (
-      <div className="max-w-3xl mx-auto px-16 py-16">
+      <div className="max-w-3xl mx-auto px-4 sm:px-8 md:px-16 py-16">
         <p className="text-sm text-[var(--foreground)] mb-2">Application not found.</p>
         <Link href="/jobs" className="text-sm text-[var(--accent)] hover:underline">
           Back to Jobs
@@ -59,7 +59,7 @@ export default function JobDetailPage() {
 
   if (!data && !error) {
     return (
-      <div className="max-w-3xl mx-auto px-16 py-16">
+      <div className="max-w-3xl mx-auto px-4 sm:px-8 md:px-16 py-16">
         <p className="text-sm text-[var(--muted)]">Loading…</p>
       </div>
     )
@@ -67,14 +67,14 @@ export default function JobDetailPage() {
 
   if (!data) {
     return (
-      <div className="max-w-3xl mx-auto px-16 py-16">
+      <div className="max-w-3xl mx-auto px-4 sm:px-8 md:px-16 py-16">
         <p className="text-sm text-[var(--muted)]">Something went wrong.</p>
       </div>
     )
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-16 py-16">
+    <div className="max-w-3xl mx-auto px-4 sm:px-8 md:px-16 py-16">
       <Link href="/jobs" className="text-xs text-[var(--muted)] hover:text-[var(--foreground)] transition-colors">
         ← Back to Jobs
       </Link>
