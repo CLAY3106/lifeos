@@ -10,6 +10,11 @@
   --rule: #e2e8f0;
 
   --accent: #0d9488;
+  /* Accent for small text and solid fills that carry text. --accent itself is
+     too light for 4.5:1 against white in light mode and against white text
+     in dark mode, so pair --accent-strong with --on-accent. */
+  --accent-strong: #0f766e;
+  --on-accent: #ffffff;
   --danger: #dc2626;
 
   --callout-gray: #f1f5f4;
@@ -39,6 +44,8 @@
     --rule: #1f3b38;
 
     --accent: #2dd4bf;
+    --accent-strong: #2dd4bf;
+    --on-accent: #042f2e;
     --danger: #f87171;
 
     --callout-gray: #1b2624;
@@ -65,6 +72,8 @@
   --rule: #1f3b38;
 
   --accent: #2dd4bf;
+  --accent-strong: #2dd4bf;
+  --on-accent: #042f2e;
   --danger: #f87171;
 
   --callout-gray: #1b2624;
