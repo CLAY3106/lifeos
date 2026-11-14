@@ -18,6 +18,7 @@ import {
   CheckIcon,
   ClockIcon,
   LeafIcon,
+  LightbulbIcon,
   PlusIcon,
   WalletIcon,
 } from "@/components/icons"
@@ -66,7 +67,7 @@ const STEPS = [
   { title: "What are you juggling?", blurb: "Pick the areas you want LifeOS to track." },
   { title: "Your limits", blurb: "Two numbers keep your plan realistic." },
   { title: "Quick add", blurb: "Add a few real things now, or skip and do it later." },
-  { title: "Your first briefing", blurb: "Here is what LifeOS would focus on for you." },
+  { title: "You're all set", blurb: "Here is what LifeOS would focus on for you first." },
 ]
 
 const POST_PATHS: Record<ModuleKey, string> = {
@@ -684,6 +685,7 @@ export default function OnboardingPage() {
   }
 
   const financeChosen = chosen.includes("finance")
+  const firstName = me.name?.trim().split(/\s+/)[0] ?? ""
 
   return (
     <div className="min-h-dvh bg-[var(--background)] flex justify-center px-4 py-6 sm:py-16">
@@ -703,6 +705,11 @@ export default function OnboardingPage() {
         <div className="bg-[var(--surface)] border border-[var(--rule)] rounded-2xl shadow-sm px-5 py-6 sm:p-10">
           <StepProgress step={step} />
 
+          {step === 4 && (
+            <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--callout-green)] text-[var(--callout-green-text)] motion-safe:animate-[pop-in_400ms_cubic-bezier(0.34,1.56,0.64,1)_both]">
+              <CheckIcon className="w-6 h-6 [stroke-width:2.5]" />
+            </span>
+          )}
           <h1
             ref={headingRef}
             tabIndex={-1}
@@ -711,7 +718,7 @@ export default function OnboardingPage() {
             <span className="sr-only">
               Step {step} of {STEP_LABELS.length}:{" "}
             </span>
-            {STEPS[step - 1].title}
+            {step === 4 && firstName ? `You're all set, ${firstName}` : STEPS[step - 1].title}
           </h1>
           <p className="text-[15px] text-[var(--muted)] mb-7">{STEPS[step - 1].blurb}</p>
 
@@ -915,54 +922,117 @@ export default function OnboardingPage() {
           )}
 
           {step === 4 && (
-            <div aria-busy={briefingLoading}>
-              {briefingLoading ? (
-                <p className="text-sm text-[var(--muted)] italic" role="status">
-                  Generating your first briefing…
-                </p>
-              ) : briefingFailed ? (
-                <p className="text-sm text-[var(--muted)]">
-                  Your briefing could not be loaded right now. You can still head
-                  to the dashboard.
-                </p>
-              ) : briefing ? (
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <p className="text-xs font-medium text-[var(--muted)] uppercase tracking-wide">
-                      Daily briefing
-                    </p>
-                    {briefing.sample && <Tag>Sample briefing</Tag>}
-                  </div>
-                  {(briefing.priorities ?? []).length > 0 && (
-                    <ol className="space-y-3 mb-4">
-                      {(briefing.priorities ?? []).slice(0, 3).map((priority, i) => (
-                        <li key={i} className="flex items-start gap-3">
-                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[var(--accent)] text-white text-xs font-bold shrink-0 mt-0.5">
-                            {i + 1}
-                          </span>
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-[var(--foreground)]">
-                              {priority.title}
-                            </p>
-                            {priority.reason && (
-                              <p className="text-xs text-[var(--muted)]">{priority.reason}</p>
-                            )}
-                          </div>
-                        </li>
-                      ))}
-                    </ol>
+            <div className="space-y-5">
+              {/* What the user just set up, as a quick recap */}
+              <ul className="flex flex-wrap gap-2" aria-label="Your setup">
+                {[
+                  `Tracking ${chosen.length} ${chosen.length === 1 ? "area" : "areas"}`,
+                  `${capacity || 0} hrs / week`,
+                  ...(financeChosen ? [`$${budget || 0} / month`] : []),
+                  ...(addedCount > 0 ? [`${addedCount} ${addedCount === 1 ? "item" : "items"} added`] : []),
+                ].map(text => (
+                  <li
+                    key={text}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-[var(--callout-gray)] px-3 py-1 text-sm text-[var(--foreground)]"
+                  >
+                    <CheckIcon className="w-3.5 h-3.5 text-[var(--accent-strong)] [stroke-width:2.5]" />
+                    {text}
+                  </li>
+                ))}
+              </ul>
+
+              <section
+                aria-labelledby="briefing-heading"
+                aria-busy={briefingLoading}
+                className="overflow-hidden rounded-xl border border-[var(--rule)]"
+              >
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-[var(--rule)] bg-[var(--callout-green)] px-4 py-3 sm:px-5">
+                  <LightbulbIcon className="w-5 h-5 text-[var(--callout-green-text)]" />
+                  <h2 id="briefing-heading" className="text-sm font-semibold text-[var(--callout-green-text)]">
+                    Today&apos;s briefing
+                  </h2>
+                  <span className="text-sm text-[var(--callout-green-text)]">
+                    {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
+                  </span>
+                  {briefing?.sample && (
+                    <span className="ml-auto">
+                      <Tag>Sample</Tag>
+                    </span>
                   )}
-                  {briefing.summary ? (
-                    <p className="text-[15px] leading-relaxed text-[var(--foreground)]">
-                      {briefing.summary}
-                    </p>
-                  ) : (briefing.priorities ?? []).length === 0 ? (
-                    <p className="text-sm text-[var(--muted)] italic">No brief yet.</p>
-                  ) : null}
                 </div>
-              ) : (
-                <p className="text-sm text-[var(--muted)] italic">No brief yet.</p>
-              )}
+
+                <div className="px-4 py-5 sm:px-5">
+                  {briefingLoading ? (
+                    <div role="status">
+                      <p className="text-sm text-[var(--muted)] mb-4">
+                        Putting together your first briefing. This takes a few seconds.
+                      </p>
+                      <div className="space-y-4" aria-hidden="true">
+                        {[0, 1, 2].map(i => (
+                          <div key={i} className="flex items-start gap-3">
+                            <Skeleton className="h-7 w-7 rounded-full shrink-0" />
+                            <div className="flex-1 space-y-2 pt-1">
+                              <Skeleton className="h-3.5 w-2/3" />
+                              <Skeleton className="h-3 w-1/2" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : briefingFailed ? (
+                    <div className="flex items-start gap-3 rounded-lg bg-[var(--callout-yellow)] p-4 text-[var(--callout-yellow-text)]">
+                      <AlertCircleIcon className="w-5 h-5 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold">Your briefing isn&apos;t ready yet</p>
+                        <p className="text-sm mt-0.5">
+                          It will show up on your dashboard. Your setup is saved, so you can head there now.
+                        </p>
+                      </div>
+                    </div>
+                  ) : briefing && ((briefing.priorities ?? []).length > 0 || briefing.summary) ? (
+                    <div>
+                      {(briefing.priorities ?? []).length > 0 && (
+                        <ol className="space-y-4">
+                          {(briefing.priorities ?? []).slice(0, 3).map((priority, i) => (
+                            <li
+                              key={i}
+                              className="flex items-start gap-3 motion-safe:animate-[fade-up_400ms_ease-out_both]"
+                              style={{ animationDelay: `${i * 120}ms` }}
+                            >
+                              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent-strong)] text-sm font-bold text-[var(--on-accent)]">
+                                {i + 1}
+                              </span>
+                              <div className="min-w-0 pt-0.5">
+                                <p className="text-[15px] font-semibold text-[var(--foreground)]">
+                                  {priority.title}
+                                </p>
+                                {priority.reason && (
+                                  <p className="text-sm text-[var(--muted)] mt-0.5">{priority.reason}</p>
+                                )}
+                              </div>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                      {briefing.summary && (
+                        <p
+                          className={`text-[15px] leading-relaxed text-[var(--foreground)] motion-safe:animate-[fade-up_400ms_ease-out_both] ${
+                            (briefing.priorities ?? []).length > 0 ? "mt-5 pt-5 border-t border-[var(--rule)]" : ""
+                          }`}
+                          style={{ animationDelay: "360ms" }}
+                        >
+                          {briefing.summary}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[var(--muted)]">
+                      Nothing to brief yet. As you add assignments, applications, workouts and
+                      expenses, your daily briefing fills in on the dashboard.
+                    </p>
+                  )}
+                </div>
+              </section>
             </div>
           )}
 
@@ -999,24 +1069,16 @@ export default function OnboardingPage() {
                 </button>
               </>
             ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => void completeFlow(false)}
-                  disabled={completing}
-                  className={secondaryButtonClass}
-                >
-                  Skip for now
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void completeFlow(false)}
-                  disabled={completing}
-                  className={primaryButtonClass}
-                >
-                  {completing ? "Finishing…" : "Go to dashboard"}
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() => void completeFlow(false)}
+                disabled={completing}
+                aria-busy={completing}
+                className={`${primaryButtonClass} w-full sm:w-auto sm:ml-auto`}
+              >
+                {completing ? "Finishing…" : "Go to dashboard"}
+                {!completing && <ArrowRightIcon className="w-4 h-4" />}
+              </button>
             )}
           </div>
         </div>
